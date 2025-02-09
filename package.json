@@ -1,0 +1,18 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "A Discord bot that tracks user streaks based on configurable trigger words. Users can build streaks by sending specific messages, and compete on separate leaderboards for each trigger word.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.17.3",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "sequelize": "^6.37.5"
+  }
+}
