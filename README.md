@@ -1,23 +1,39 @@
-
-# Discord Streak Bot
-
-A Discord bot that helps track user streaks for specific trigger words.
-
-## Setup
-
-1. Create a Discord application and bot at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Enable "Message Content Intent" in the Bot settings
-3. Copy your bot token
-4. Create a new Repl and import this project
-5. Add your Discord bot token to Replit's Secrets tab with key `DISCORD_TOKEN`
-6. Install dependencies:
-   ```bash
-   npm install
+npm install
    ```
 7. Start the bot:
    ```bash
    node src/index.js
    ```
+
+## Deployment
+
+### Replit Deployment (Recommended)
+
+1. Click the "Release" button at the top right of your Replit workspace
+2. Select "Deploy" from the dropdown menu
+3. Choose your preferred deployment tier
+4. Configure the deployment:
+   - Build Command: `npm install`
+   - Run Command: `node src/index.js`
+   - Ensure "Health check before promoting" is unchecked since this is a Discord bot
+5. Click "Deploy" to publish your bot
+
+The bot will now run 24/7 without keeping your Replit workspace open.
+
+### Alternative Deployment: Railway.app
+
+1. Fork this repository to your GitHub account
+2. Visit [Railway.app](https://railway.app) and create a new project
+3. Choose "Deploy from GitHub repo"
+4. Select your forked repository
+5. Add environment variables:
+   - `DISCORD_TOKEN`: Your Discord bot token
+   - `DATABASE_URL`: Your PostgreSQL connection URL (Railway will create this automatically if you add a PostgreSQL database)
+6. Railway will automatically deploy your bot
+7. To add a database:
+   - Click "New" and select "Database"
+   - Choose "PostgreSQL"
+   - The `DATABASE_URL` will be automatically added to your environment variables
 
 ## Bot Setup
 
@@ -37,16 +53,3 @@ A Discord bot that helps track user streaks for specific trigger words.
    /setup words:daily,workout,study
    /setstreak_limit interval:daily
    /remove words:workout
-   ```
-
-## Permissions Required
-
-The bot needs the following Discord permissions:
-- Send Messages
-- Read Message History
-- Add Reactions
-- Use Application Commands
-
-## Need Help?
-
-Use the `/help` command in Discord to see all available commands and their usage.
