@@ -2,26 +2,18 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// Handle Railway's private network format
-let databaseUrl = process.env.DATABASE_URL;
+// Get database connection info from Railway's environment variables
+const databaseUrl = process.env.DATABASE_URL;
+const postgresqlUrl = process.env.POSTGRESQL_URL;
 
-// Try to parse Railway's format if it matches the template syntax
-if (databaseUrl && databaseUrl.includes('{{') && databaseUrl.includes('}}')) {
-    console.log('Detected Railway template syntax, using PostgreSQL default URL');
-    const PGUSER = process.env.PGUSER || 'postgres';
-    const PGPASSWORD = process.env.PGPASSWORD || '';
-    const PGHOST = process.env.PGHOST || 'localhost';
-    const PGPORT = process.env.PGPORT || 5432;
-    const PGDATABASE = process.env.PGDATABASE || 'railway';
-    
-    databaseUrl = `postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}`;
-}
+// Use the first available connection URL
+const connectionUrl = databaseUrl || postgresqlUrl;
 
-if (!databaseUrl) {
+if (!connectionUrl) {
     throw new Error('Database URL not found in environment variables');
 }
 
-const sequelize = new Sequelize(databaseUrl, {
+const sequelize = new Sequelize(connectionUrl, {
     dialect: 'postgres',
     dialectOptions: {
         ssl: {
