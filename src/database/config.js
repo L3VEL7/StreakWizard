@@ -2,15 +2,17 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// Get database connection info from Railway's environment variables
-const databaseUrl = process.env.DATABASE_URL;
-const postgresqlUrl = process.env.POSTGRESQL_URL;
+let connectionUrl;
 
-// Use the first available connection URL
-const connectionUrl = databaseUrl || postgresqlUrl;
+// Try using Railway's provided PostgreSQL URL format first
+if (process.env.PGHOST && process.env.PGDATABASE && process.env.PGUSER && process.env.PGPASSWORD && process.env.PGPORT) {
+    connectionUrl = `postgresql://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`;
+} else {
+    connectionUrl = process.env.DATABASE_URL;
+}
 
 if (!connectionUrl) {
-    throw new Error('Database URL not found in environment variables');
+    throw new Error('Database connection URL not found in environment variables');
 }
 
 const sequelize = new Sequelize(connectionUrl, {
