@@ -2,7 +2,14 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
+// Parse Railway's database URL or use direct environment variable
+const databaseUrl = process.env.DATABASE_URL || process.env.RAILWAY_DATABASE_URL;
+
+if (!databaseUrl) {
+    throw new Error('Database URL not found in environment variables');
+}
+
+const sequelize = new Sequelize(databaseUrl, {
     dialect: 'postgres',
     dialectOptions: {
         ssl: {
