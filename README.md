@@ -7,7 +7,7 @@ npm install
 
 ## Deployment
 
-### Replit Deployment (Recommended)
+### Replit Deployment 
 
 1. Click the "Release" button at the top right of your Replit workspace
 2. Select "Deploy" from the dropdown menu
