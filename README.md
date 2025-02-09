@@ -53,3 +53,15 @@ The bot will now run 24/7 without keeping your Replit workspace open.
    /setup words:daily,workout,study
    /setstreak_limit interval:daily
    /remove words:workout
+
+
+## License
+
+This project is licensed under the MIT License with Attribution Requirement.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the following conditions:
+
+- The above copyright notice, this permission notice, and **attribution to the original creator [L3VEL7](https://github.com/L3VEL7)** must be included in all copies or substantial portions of the Software.
+- Any modified versions must clearly state that changes were made and must still give appropriate credit to the original creator.
+
+**Disclaimer:** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
