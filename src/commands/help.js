@@ -12,6 +12,7 @@ module.exports = {
             .addFields(
                 { name: '/setup', value: 'Configure trigger words (Admin only)\nUsage: `/setup words:word1,word2,word3`' },
                 { name: '/setstreak_limit', value: 'Set time between streak updates (Admin only)\nUsage: `/setstreak_limit interval:[hourly/daily/none]`' },
+                { name: '/remove', value: 'Remove trigger words (Admin only)\nUsage: `/remove words:word1,word2,word3`' },
                 { name: '/leaderboard', value: 'View streak leaderboard for a specific word\nUsage: `/leaderboard word:trigger_word`' },
                 { name: '/help', value: 'Show this help message\nUsage: `/help`' }
             )
@@ -19,4 +20,4 @@ module.exports = {
 
         await interaction.reply({ embeds: [embed], ephemeral: true });
     },
-};
+};/
