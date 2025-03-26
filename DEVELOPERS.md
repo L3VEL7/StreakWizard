@@ -1,13 +1,13 @@
-# Developer Guide - Streakwiz PostgreSQL Version
+# Developer Guide
 
-This guide provides detailed information about the bot's architecture, codebase structure, and development guidelines for contributors.
+This document provides technical details and guidelines for developers working on the Streakwiz Discord bot.
 
 ## Project Structure
 
 ```
-Streakwiz_PostgreSQL_version/
+streakwiz/
 ├── src/
-│   ├── commands/           # Discord slash commands
+│   ├── commands/           # Discord bot commands
 │   │   ├── help.js
 │   │   ├── leaderboard.js
 │   │   ├── profile.js
@@ -18,245 +18,224 @@ Streakwiz_PostgreSQL_version/
 │   │   ├── stats.js
 │   │   └── toggle_streakstreak.js
 │   ├── database/          # Database configuration and models
-│   │   ├── config.js      # Sequelize configuration
-│   │   └── models.js      # Database models and migrations
-│   ├── storage/          # Data access layer
+│   │   ├── config.js     # Database connection configuration
+│   │   ├── migrate.js    # Database migration logic
+│   │   └── models.js     # Sequelize models
+│   ├── storage/          # Data management
 │   │   └── streakManager.js
-│   └── index.js          # Main bot entry point
-├── .env                  # Environment variables
-├── package.json
-└── README.md
+│   ├── utils/           # Utility functions
+│   │   └── logger.js    # Winston logger configuration
+│   ├── __tests__/      # Test files
+│   │   └── streakManager.test.js
+│   └── index.js        # Main entry point
+├── logs/              # Application logs
+├── .env.example      # Example environment variables
+├── .eslintrc.json   # ESLint configuration
+├── .prettierrc      # Prettier configuration
+├── .gitignore      # Git ignore rules
+├── package.json    # Project configuration
+└── README.md      # Project documentation
 ```
 
-## Architecture Overview
+## Architecture
 
 ### Core Components
 
-1. **Command Handler (`src/commands/`)**
-   - Implements Discord slash commands
+1. **Command Handler** (`src/commands/`)
    - Each command is a separate module
-   - Follows a consistent structure with `data` and `execute` functions
-   - Handles user interactions and permissions
+   - Commands follow a consistent structure
+   - Implements permission checks and validation
 
-2. **Database Layer (`src/database/`)**
-   - Uses Sequelize ORM for PostgreSQL
-   - Models define data structure and relationships
-   - Includes migration system for database updates
-   - Handles data persistence and retrieval
+2. **Database Layer** (`src/database/`)
+   - Uses Sequelize ORM
+   - Models:
+     - `GuildConfig`: Server-specific settings
+     - `Streak`: User streak data
+   - Includes migration system for schema updates
 
-3. **Storage Manager (`src/storage/streakManager.js`)**
-   - Business logic layer
-   - Handles streak calculations and updates
-   - Manages streak streaks and milestones
-   - Provides data access abstraction
+3. **Streak Manager** (`src/storage/streakManager.js`)
+   - Core business logic for streak handling
+   - Manages streak updates and validation
+   - Handles milestone tracking
 
-4. **Main Bot (`src/index.js`)**
-   - Initializes Discord client
-   - Loads commands
-   - Handles message events
-   - Manages bot lifecycle
+4. **Utility Functions** (`src/utils/`)
+   - Logging system
+   - Common helper functions
 
 ### Database Schema
 
-1. **GuildConfig Model**
-   ```javascript
-   {
-     guildId: string (primary key),
-     triggerWords: string[],
-     streakLimit: integer,
-     streakStreakEnabled: boolean
-   }
+#### GuildConfig
+```javascript
+{
+  guildId: string,          // Discord server ID
+  triggerWords: string[],   // List of words that trigger streaks
+  streakLimit: string,      // Rate limit for streak updates
+  streakStreakEnabled: boolean, // Enable/disable streak streaks
+}
+```
+
+#### Streak
+```javascript
+{
+  userId: string,           // Discord user ID
+  guildId: string,         // Discord server ID
+  word: string,            // Trigger word
+  count: number,           // Current streak count
+  bestStreak: number,      // Highest streak achieved
+  streakStreak: number,    // Consecutive days with streaks
+  lastUpdate: Date,        // Last streak update timestamp
+  lastStreakDate: Date,    // Last streak streak date
+}
+```
+
+## Development Workflow
+
+### Setting Up Development Environment
+
+1. **Clone and Install**
+   ```bash
+   git clone https://github.com/yourusername/streakwiz.git
+   cd streakwiz
+   npm install
    ```
 
-2. **Streak Model**
-   ```javascript
-   {
-     id: integer (primary key),
-     guildId: string,
-     userId: string,
-     triggerWord: string,
-     count: integer,
-     bestStreak: integer,
-     streakStreak: integer,
-     lastStreakDate: date,
-     lastUpdated: date
-   }
+2. **Environment Setup**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your development credentials
    ```
 
-## Development Guidelines
+3. **Database Setup**
+   ```bash
+   npm run migrate
+   ```
 
-### Adding New Commands
+### Development Process
 
-1. Create a new file in `src/commands/`
-2. Follow the command structure:
+1. **Creating New Features**
+   - Create feature branch: `git checkout -b feature/your-feature`
+   - Implement changes
+   - Add tests
+   - Update documentation
+   - Submit pull request
+
+2. **Adding New Commands**
    ```javascript
+   // src/commands/your-command.js
    module.exports = {
-     data: new SlashCommandBuilder()
-       .setName('command_name')
-       .setDescription('Command description')
-       .addOption(/* options */),
-     
+     name: 'command-name',
+     description: 'Command description',
      async execute(interaction) {
        // Command logic
      }
    };
    ```
 
-### Database Changes
-
-1. **Adding New Fields**
-   - Update the model in `models.js`
-   - Add migration logic in `migrateDatabase()`
-   - Include rollback procedures
-   - Test with existing data
-
-2. **Modifying Existing Fields**
-   - Create backup before changes
-   - Update both model and migration
-   - Handle data conversion if needed
-
-### Error Handling
-
-1. **Command Errors**
-   ```javascript
-   try {
-     await command.execute(interaction);
-   } catch (error) {
-     console.error(error);
-     await interaction.reply({
-       content: 'There was an error executing this command!',
-       ephemeral: true
-     });
-   }
-   ```
-
-2. **Database Errors**
-   - Use try-catch blocks
-   - Log errors with context
-   - Implement rollback mechanisms
-   - Provide user-friendly error messages
+3. **Database Changes**
+   - Add new models in `src/database/models.js`
+   - Update migration logic in `src/database/migrate.js`
+   - Test migration process
 
 ### Testing
 
-1. **Local Testing**
-   - Use a test Discord server
-   - Create a test database
-   - Test all command variations
-   - Verify error handling
+1. **Running Tests**
+   ```bash
+   npm test                 # Run all tests
+   npm test -- --watch     # Watch mode
+   npm test -- --coverage  # Coverage report
+   ```
 
-2. **Database Testing**
-   - Test migrations
-   - Verify data integrity
-   - Check rollback procedures
-   - Test with large datasets
+2. **Writing Tests**
+   ```javascript
+   describe('Feature', () => {
+     it('should behave as expected', () => {
+       // Test logic
+     });
+   });
+   ```
 
-## Common Patterns
+### Code Style
 
-### Message Handling
+- ESLint and Prettier are configured
+- Run `npm run lint` to check code
+- Run `npm run format` to format code
+- Follow existing patterns in the codebase
+
+### Logging
+
 ```javascript
-client.on('messageCreate', async message => {
-  if (message.author.bot) return;
-  // Process message
-});
+const logger = require('../utils/logger');
+
+logger.info('Informational message');
+logger.error('Error message', { error });
+logger.debug('Debug message', { context });
 ```
 
-### Command Structure
-```javascript
-const { SlashCommandBuilder } = require('discord.js');
+### Error Handling
 
-module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('command')
-    .setDescription('Description'),
-  
-  async execute(interaction) {
-    await interaction.deferReply();
-    // Command logic
-    await interaction.editReply('Result');
-  }
-};
-```
+1. **Database Errors**
+   ```javascript
+   try {
+     await database.operation();
+   } catch (error) {
+     logger.error('Database operation failed', { error });
+     throw new Error('Friendly user message');
+   }
+   ```
 
-### Database Operations
-```javascript
-// Find or create
-const [record, created] = await Model.findOrCreate({
-  where: { /* conditions */ },
-  defaults: { /* default values */ }
-});
+2. **Discord API Errors**
+   ```javascript
+   try {
+     await interaction.reply('Message');
+   } catch (error) {
+     logger.error('Discord API error', { error });
+     // Handle gracefully
+   }
+   ```
 
-// Update with safety
-await record.update({
-  field: value
-}, {
-  where: { /* conditions */ }
-});
-```
+## Deployment
 
-## Contributing
+### Production Considerations
 
-1. **Fork the Repository**
-   - Create a feature branch
-   - Make your changes
-   - Test thoroughly
-   - Submit a pull request
+1. **Environment**
+   - Set `NODE_ENV=production`
+   - Configure proper logging levels
+   - Use production database credentials
 
-2. **Code Style**
-   - Use consistent formatting
-   - Add comments for complex logic
-   - Follow existing patterns
-   - Update documentation
+2. **Database**
+   - Run migrations before deployment
+   - Backup data regularly
+   - Monitor database performance
 
-3. **Testing**
-   - Test all new features
-   - Verify backward compatibility
-   - Check error handling
-   - Test database migrations
-
-4. **Documentation**
-   - Update README.md if needed
-   - Document new commands
-   - Explain complex logic
-   - Update this guide
+3. **Monitoring**
+   - Check application logs
+   - Monitor Discord API rate limits
+   - Track error rates
 
 ## Troubleshooting
 
 ### Common Issues
 
 1. **Database Connection**
-   - Check DATABASE_URL in .env
-   - Verify PostgreSQL is running
-   - Check network connectivity
-   - Review error logs
+   - Check connection string
+   - Verify database credentials
+   - Ensure database server is running
 
 2. **Command Registration**
-   - Verify command structure
-   - Check permissions
-   - Review Discord API limits
-   - Check bot token
+   - Verify command file structure
+   - Check Discord application commands
+   - Clear command cache if needed
 
 3. **Migration Issues**
-   - Review migration logs
-   - Check backup tables
-   - Verify data integrity
-   - Test rollback procedures
+   - Backup database before migrations
+   - Check migration logs
+   - Verify database permissions
 
 ## Future Improvements
 
-1. **Potential Features**
-   - Custom milestone levels
-   - Advanced statistics
-   - Streak categories
-   - Challenge system
-
-2. **Technical Improvements**
-   - Caching layer
-   - Rate limiting
-   - Performance optimization
-   - Enhanced error handling
-
-3. **Documentation**
-   - API documentation
-   - More examples
-   - Troubleshooting guide
-   - Development tutorials 
+- [ ] Add rate limiting per guild
+- [ ] Implement backup system
+- [ ] Add analytics dashboard
+- [ ] Improve error handling
+- [ ] Add more test coverage
+- [ ] Implement caching system 

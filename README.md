@@ -1,41 +1,108 @@
 # Streakwiz PostgreSQL Version
 
-A Discord bot that allows tracking user message streaks with advanced features and robust database management.
+A Discord bot that allows tracking user message streaks with advanced features and robust database management. Users can build streaks by sending specific messages and compete on separate leaderboards for each trigger word.
 
 ## Features
 
-- **Streak Tracking**: Track user streaks for specific trigger words
-- **Streak Streaks**: Track consecutive days of maintaining streaks (optional feature)
-- **Rate Limiting**: Configurable time limits between streak updates
-- **Milestones**: Celebrate user achievements at various streak levels
-- **Leaderboards**: View rankings for each trigger word
-- **User Profiles**: Detailed streak statistics and history
-- **Server Statistics**: View server-wide streak analytics
-- **Robust Database**: PostgreSQL backend with automatic migrations and backups
+- 🎯 **Customizable Trigger Words**: Set up multiple words/phrases to track
+- 📈 **Streak Tracking**: Track daily streaks for each trigger word
+- 🏆 **Streak Streaks**: Track consecutive days of maintaining streaks (optional feature)
+- 📊 **Leaderboards**: Compete with other users on server-wide leaderboards
+- 👤 **User Profiles**: View detailed statistics about your streaks
+- ⚙️ **Server Configuration**: Customize bot settings per server
+- 🔒 **Rate Limiting**: Prevent spam with configurable cooldowns
+- 🎉 **Milestone Celebrations**: Celebrate streak achievements
+- 📝 **Detailed Statistics**: Track server-wide engagement
+- 💾 **Robust Database**: PostgreSQL backend with automatic migrations and backups
 
-## Installation
+## Quick Start
 
-1. Clone the repository:
+1. **Prerequisites**
+   - Node.js 16 or higher
+   - PostgreSQL database
+   - Discord Bot Token
+
+2. **Installation**
    ```bash
+   # Clone the repository
    git clone https://github.com/L3VEL7/Streakwiz_PostgreSQL_version.git
    cd Streakwiz_PostgreSQL_version
-   ```
 
-2. Install dependencies:
-   ```bash
+   # Install dependencies
    npm install
-   ```
 
-3. Create a `.env` file with your configuration:
-   ```
+   # Set up environment variables
+   cp .env.example .env
+   # Edit .env with your configuration:
    DISCORD_TOKEN=your_discord_bot_token
    DATABASE_URL=your_postgresql_database_url
    ```
 
-4. Start the bot:
+3. **Database Setup**
    ```bash
-   node src/index.js
+   # Run database migrations
+   npm run migrate
    ```
+
+4. **Start the Bot**
+   ```bash
+   # Development mode
+   npm run dev
+
+   # Production mode
+   npm start
+   ```
+
+## Bot Setup
+
+After adding the bot to your server:
+
+1. **Admin Configuration**
+   - Use `/setup` to configure trigger words (admin only)
+   - Use `/setstreak_limit` to configure how often users can update their streaks (admin only)
+     - Options: hourly, daily, or none (unlimited)
+     - Important: Set this after configuring trigger words
+   - Use `/remove` to remove specific trigger words (admin only)
+   - Use `/toggle_streakstreak` to enable/disable streak streak tracking (admin only)
+   - Use `/reset` to reset streaks for users or trigger words (admin only)
+
+2. **User Commands**
+   - Use `/profile` to view your or another user's streak profile
+   - Use `/leaderboard` to view rankings for each trigger word
+   - Use `/stats` to view server-wide streak statistics
+   - Use `/help` to view all available commands
+
+3. **Building Streaks**
+   - Users can start building streaks by sending messages that exactly match the trigger words
+   - The bot will react with appropriate emojis to confirm streak increments
+
+### Example Setup
+```
+/setup words:daily,workout,study
+/setstreak_limit interval:daily
+/toggle_streakstreak
+/remove words:workout
+```
+
+## Features in Detail
+
+### Streak Streaks
+- Track consecutive days of maintaining streaks
+- Special milestones at 7, 14, 30, 60, 90, 180, and 365 days
+- Can be enabled/disabled per server
+- Shows remaining time until next streak update
+
+### Milestones
+- Regular streaks: 10, 25, 50, 100, 250, 500, 1000
+- Streak streaks: 7, 14, 30, 60, 90, 180, 365 days
+- Special celebrations with unique emojis
+- User mentions in milestone messages
+
+### Statistics
+- Server-wide streak analytics
+- User profiles with detailed history
+- Best streak tracking
+- Streak streak progress
 
 ## Database Migration
 
@@ -71,50 +138,31 @@ The bot includes a robust database migration system that:
    - Choose "PostgreSQL"
    - The `DATABASE_URL` will be automatically added to your environment variables
 
-## Bot Setup
+## Configuration
 
-1. After adding the bot to your server:
-   - Use `/setup` to configure trigger words (admin only)
-   - Use `/setstreak_limit` to configure how often users can update their streaks (admin only)
-     - Options: hourly, daily, or none (unlimited)
-     - Important: Set this after configuring trigger words
-   - Use `/remove` to remove specific trigger words (admin only)
-   - Use `/toggle_streakstreak` to enable/disable streak streak tracking (admin only)
-   - Use `/reset` to reset streaks for users or trigger words (admin only)
-   - Use `/profile` to view your or another user's streak profile
-   - Use `/leaderboard` to view rankings for each trigger word
-   - Use `/stats` to view server-wide streak statistics
-   - Use `/help` to view all available commands
-   - Users can start building streaks by sending messages that exactly match the trigger words
-   - The bot will react with appropriate emojis to confirm streak increments
+The bot can be configured using environment variables:
 
-2. Example Setup:
-   ```
-   /setup words:daily,workout,study
-   /setstreak_limit interval:daily
-   /toggle_streakstreak
-   /remove words:workout
-   ```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| DISCORD_TOKEN | Your Discord bot token | Required |
+| DATABASE_URL | PostgreSQL connection URL | Required |
+| NODE_ENV | Environment (development/production) | development |
+| LOG_LEVEL | Logging level | info |
 
-## Features in Detail
+## Development
 
-### Streak Streaks
-- Track consecutive days of maintaining streaks
-- Special milestones at 7, 14, 30, 60, 90, 180, and 365 days
-- Can be enabled/disabled per server
-- Shows remaining time until next streak update
+```bash
+# Run tests
+npm test
 
-### Milestones
-- Regular streaks: 10, 25, 50, 100, 250, 500, 1000
-- Streak streaks: 7, 14, 30, 60, 90, 180, 365 days
-- Special celebrations with unique emojis
-- User mentions in milestone messages
+# Lint code
+npm run lint
 
-### Statistics
-- Server-wide streak analytics
-- User profiles with detailed history
-- Best streak tracking
-- Streak streak progress
+# Format code
+npm run format
+```
+
+For detailed development guidelines, see [DEVELOPERS.md](DEVELOPERS.md).
 
 ## License
 
@@ -126,3 +174,10 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - Any modified versions must clearly state that changes were made and must still give appropriate credit to the original creator.
 
 **Disclaimer:** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Support
+
+If you encounter any issues or have questions, please:
+1. Check the [DEVELOPERS.md](DEVELOPERS.md) file for technical details
+2. Open an issue in the GitHub repository
+3. Contact the maintainers
