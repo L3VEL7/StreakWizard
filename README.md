@@ -1,26 +1,62 @@
-npm install
+# Streakwiz PostgreSQL Version
+
+A Discord bot that allows tracking user message streaks with advanced features and robust database management.
+
+## Features
+
+- **Streak Tracking**: Track user streaks for specific trigger words
+- **Streak Streaks**: Track consecutive days of maintaining streaks (optional feature)
+- **Rate Limiting**: Configurable time limits between streak updates
+- **Milestones**: Celebrate user achievements at various streak levels
+- **Leaderboards**: View rankings for each trigger word
+- **User Profiles**: Detailed streak statistics and history
+- **Server Statistics**: View server-wide streak analytics
+- **Robust Database**: PostgreSQL backend with automatic migrations and backups
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/L3VEL7/Streakwiz_PostgreSQL_version.git
+   cd Streakwiz_PostgreSQL_version
    ```
-7. Start the bot:
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create a `.env` file with your configuration:
+   ```
+   DISCORD_TOKEN=your_discord_bot_token
+   DATABASE_URL=your_postgresql_database_url
+   ```
+
+4. Start the bot:
    ```bash
    node src/index.js
    ```
 
+## Database Migration
+
+The bot includes a robust database migration system that:
+- Automatically detects and adds new features
+- Creates backups before any database changes
+- Handles rollback if migration fails
+- Preserves existing data during updates
+- Logs all migration steps for debugging
+
+### Migration Safety Features
+- Automatic table backups before changes
+- Existence checks for tables and columns
+- Safe column addition with proper constraints
+- Data initialization for new features
+- Comprehensive error handling
+- Detailed logging system
+
 ## Deployment
 
-### Replit Deployment 
-
-1. Click the "Release" button at the top right of your Replit workspace
-2. Select "Deploy" from the dropdown menu
-3. Choose your preferred deployment tier
-4. Configure the deployment:
-   - Build Command: `npm install`
-   - Run Command: `node src/index.js`
-   - Ensure "Health check before promoting" is unchecked since this is a Discord bot
-5. Click "Deploy" to publish your bot
-
-The bot will now run 24/7 without keeping your Replit workspace open.
-
-### Alternative Deployment: Railway.app
+### Railway.app Deployment
 
 1. Fork this repository to your GitHub account
 2. Visit [Railway.app](https://railway.app) and create a new project
@@ -43,17 +79,42 @@ The bot will now run 24/7 without keeping your Replit workspace open.
      - Options: hourly, daily, or none (unlimited)
      - Important: Set this after configuring trigger words
    - Use `/remove` to remove specific trigger words (admin only)
+   - Use `/toggle_streakstreak` to enable/disable streak streak tracking (admin only)
+   - Use `/reset` to reset streaks for users or trigger words (admin only)
+   - Use `/profile` to view your or another user's streak profile
    - Use `/leaderboard` to view rankings for each trigger word
+   - Use `/stats` to view server-wide streak statistics
    - Use `/help` to view all available commands
    - Users can start building streaks by sending messages that exactly match the trigger words
-   - The bot will react with 🔥 to confirm streak increments
+   - The bot will react with appropriate emojis to confirm streak increments
 
 2. Example Setup:
    ```
    /setup words:daily,workout,study
    /setstreak_limit interval:daily
+   /toggle_streakstreak
    /remove words:workout
+   ```
 
+## Features in Detail
+
+### Streak Streaks
+- Track consecutive days of maintaining streaks
+- Special milestones at 7, 14, 30, 60, 90, 180, and 365 days
+- Can be enabled/disabled per server
+- Shows remaining time until next streak update
+
+### Milestones
+- Regular streaks: 10, 25, 50, 100, 250, 500, 1000
+- Streak streaks: 7, 14, 30, 60, 90, 180, 365 days
+- Special celebrations with unique emojis
+- User mentions in milestone messages
+
+### Statistics
+- Server-wide streak analytics
+- User profiles with detailed history
+- Best streak tracking
+- Streak streak progress
 
 ## License
 

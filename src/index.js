@@ -110,31 +110,32 @@ client.on('messageCreate', async message => {
         console.log(`Comparing with trigger: "${processedTrigger}"`); // Debug log
         // Ensure exact match by trimming and comparing lowercase versions
         if (content === processedTrigger) {
-            const newStreak = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
+            const result = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
             try {
-                if (newStreak === -1) {
+                if (result === -1) {
                     // Rate limited
-                    const limit = await streakManager.getStreakLimit(message.guildId);
-                    const timeUnit = limit >= 1440 ? 'day' : 'hour';
-                    const timeValue = limit >= 1440 ? limit / 1440 : limit / 60;
-                    await message.reply(`⏳ Please wait ${timeValue} ${timeUnit}${timeValue !== 1 ? 's' : ''} between streak updates.`);
+                    const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, trigger);
+                    if (remainingTime === 0) {
+                        // If they can update now, try incrementing again
+                        const retryResult = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
+                        if (retryResult !== -1) {
+                            await handleStreakUpdate(message, retryResult, trigger);
+                        }
+                    } else {
+                        let timeMessage = '⏳ Please wait ';
+                        if (remainingTime.hours > 0) {
+                            timeMessage += `${remainingTime.hours} hour${remainingTime.hours !== 1 ? 's' : ''} `;
+                        }
+                        if (remainingTime.minutes > 0) {
+                            timeMessage += `${remainingTime.minutes} minute${remainingTime.minutes !== 1 ? 's' : ''}`;
+                        }
+                        timeMessage += ' until your next streak update.';
+                        await message.reply(timeMessage);
+                    }
                     break;
                 }
 
-                // Convert streak number to emoji
-                let streakEmoji;
-                if (newStreak <= 10) {
-                    // Use number emojis for streaks 1-10
-                    const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-                    streakEmoji = numberEmojis[newStreak - 1];
-                } else {
-                    // Use fire emoji for streaks above 10
-                    streakEmoji = '🔥';
-                }
-
-                await message.react(streakEmoji);
-                // Optional: Send feedback about the streak
-                await message.reply(`${streakEmoji} Your streak for "${trigger}" is now ${newStreak}!`);
+                await handleStreakUpdate(message, result, trigger);
             } catch (error) {
                 console.error('Error reacting to message:', error);
             }
@@ -142,6 +143,43 @@ client.on('messageCreate', async message => {
         }
     }
 });
+
+// Helper function to handle streak updates and reactions
+async function handleStreakUpdate(message, result, trigger) {
+    const { count, streakStreak, milestone, streakStreakMilestone } = result;
+    
+    // Convert streak number to emoji
+    let streakEmoji;
+    if (count <= 10) {
+        const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+        streakEmoji = numberEmojis[count - 1];
+    } else {
+        streakEmoji = '🔥';
+    }
+
+    await message.react(streakEmoji);
+    
+    let replyMessage = `${streakEmoji} Your streak for "${trigger}" is now ${count}!`;
+    
+    // Add streak streak information only if enabled
+    if (await streakManager.isStreakStreakEnabled(message.guildId)) {
+        if (streakStreak > 1) {
+            replyMessage += `\n📅 You've maintained this streak for ${streakStreak} days in a row!`;
+        }
+        
+        // Add streak streak milestone celebration if achieved
+        if (streakStreakMilestone) {
+            replyMessage = `🎉 **STREAK STREAK MILESTONE!** 🎉\n${streakStreakMilestone.emoji} Amazing job ${message.author}! You've maintained your streak for ${streakStreakMilestone.level} days in a row!\n${replyMessage}`;
+        }
+    }
+    
+    // Add milestone celebration if achieved
+    if (milestone) {
+        replyMessage = `🎉 **MILESTONE ACHIEVED!** 🎉\n${milestone.emoji} Congratulations ${message.author}! You've reached ${milestone.level} streaks for "${trigger}"!\n${replyMessage}`;
+    }
+    
+    await message.reply(replyMessage);
+}
 
 // Login with token
 try {

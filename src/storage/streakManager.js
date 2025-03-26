@@ -1,5 +1,28 @@
 const { GuildConfig, Streak } = require('../database/models');
 const { Op } = require('sequelize');
+const sequelize = require('sequelize');
+
+// Define milestone levels
+const MILESTONES = [
+    { level: 10, emoji: '🌟' },
+    { level: 25, emoji: '⭐' },
+    { level: 50, emoji: '💫' },
+    { level: 100, emoji: '🌠' },
+    { level: 250, emoji: '✨' },
+    { level: 500, emoji: '🎯' },
+    { level: 1000, emoji: '🏆' }
+];
+
+// Define streak streak milestones
+const STREAK_STREAK_MILESTONES = [
+    { level: 7, emoji: '📅' },
+    { level: 14, emoji: '📆' },
+    { level: 30, emoji: '📊' },
+    { level: 60, emoji: '📈' },
+    { level: 90, emoji: '📉' },
+    { level: 180, emoji: '📋' },
+    { level: 365, emoji: '📅' }
+];
 
 module.exports = {
     async setTriggerWords(guildId, words) {
@@ -139,6 +162,11 @@ module.exports = {
         return timeDiff >= limit;
     },
 
+    async isStreakStreakEnabled(guildId) {
+        const config = await GuildConfig.findByPk(guildId);
+        return config ? config.streakStreakEnabled : true; // Default to true if not set
+    },
+
     async incrementStreak(guildId, userId, word) {
         const processedWord = word.trim().toLowerCase();
 
@@ -154,17 +182,73 @@ module.exports = {
             },
             defaults: {
                 count: 1,
+                streakStreak: 1,
+                lastStreakDate: new Date().toISOString().split('T')[0],
                 lastUpdated: new Date()
             }
         });
 
         if (!created) {
+            const oldCount = streak.count;
+            const today = new Date().toISOString().split('T')[0];
+            
+            // Update streak streak only if enabled
+            if (await this.isStreakStreakEnabled(guildId)) {
+                if (streak.lastStreakDate) {
+                    const lastDate = new Date(streak.lastStreakDate);
+                    const currentDate = new Date(today);
+                    const daysDiff = Math.floor((currentDate - lastDate) / (1000 * 60 * 60 * 24));
+                    
+                    if (daysDiff === 1) {
+                        // Consecutive day
+                        streak.streakStreak += 1;
+                    } else if (daysDiff > 1) {
+                        // Streak broken
+                        streak.streakStreak = 1;
+                    }
+                } else {
+                    streak.streakStreak = 1;
+                }
+                streak.lastStreakDate = today;
+            }
+            
             streak.count += 1;
             streak.lastUpdated = new Date();
             await streak.save();
+
+            // Check for milestone achievement
+            const milestone = MILESTONES.find(m => m.level === streak.count);
+            if (milestone) {
+                return {
+                    count: streak.count,
+                    streakStreak: streak.streakStreak,
+                    milestone: {
+                        level: milestone.level,
+                        emoji: milestone.emoji
+                    }
+                };
+            }
+
+            // Check for streak streak milestone only if enabled
+            if (await this.isStreakStreakEnabled(guildId)) {
+                const streakStreakMilestone = STREAK_STREAK_MILESTONES.find(m => m.level === streak.streakStreak);
+                if (streakStreakMilestone) {
+                    return {
+                        count: streak.count,
+                        streakStreak: streak.streakStreak,
+                        streakStreakMilestone: {
+                            level: streakStreakMilestone.level,
+                            emoji: streakStreakMilestone.emoji
+                        }
+                    };
+                }
+            }
         }
 
-        return streak.count;
+        return { 
+            count: streak.count,
+            streakStreak: streak.streakStreak
+        };
     },
 
     async getStreaks(guildId, word = null) {
@@ -187,5 +271,91 @@ module.exports = {
             acc[streak.triggerWord][streak.userId] = streak.count;
             return acc;
         }, {});
+    },
+
+    // New function to get user's streaks
+    async getUserStreaks(guildId, userId) {
+        const streaks = await Streak.findAll({
+            where: {
+                guildId,
+                userId
+            },
+            order: [['count', 'DESC']]
+        });
+
+        return streaks.map(streak => ({
+            trigger: streak.triggerWord,
+            count: streak.count,
+            best_streak: streak.bestStreak || streak.count,
+            lastUpdated: streak.lastUpdated
+        }));
+    },
+
+    // New function to reset user's streaks
+    async resetUserStreaks(guildId, userId) {
+        await Streak.destroy({
+            where: {
+                guildId,
+                userId
+            }
+        });
+    },
+
+    // New function to reset trigger word streaks
+    async resetTriggerStreaks(guildId, triggerWord) {
+        await Streak.destroy({
+            where: {
+                guildId,
+                triggerWord: triggerWord.toLowerCase().trim()
+            }
+        });
+    },
+
+    // New function to get server statistics
+    async getServerStats(guildId) {
+        const stats = await Streak.findAll({
+            where: { guildId },
+            attributes: [
+                'triggerWord',
+                [sequelize.fn('COUNT', sequelize.col('userId')), 'active_users'],
+                [sequelize.fn('SUM', sequelize.col('count')), 'total_streaks'],
+                [sequelize.fn('AVG', sequelize.col('count')), 'average_streak']
+            ],
+            group: ['triggerWord']
+        });
+
+        return stats.map(stat => ({
+            trigger: stat.triggerWord,
+            active_users: parseInt(stat.get('active_users')),
+            total_streaks: parseInt(stat.get('total_streaks')),
+            average_streak: parseFloat(stat.get('average_streak'))
+        }));
+    },
+
+    // New function to get remaining time until next streak
+    async getRemainingTime(guildId, userId, word) {
+        const limit = await this.getStreakLimit(guildId);
+        if (limit === 0) return 0;
+
+        const streak = await Streak.findOne({
+            where: {
+                guildId,
+                userId,
+                triggerWord: word.trim().toLowerCase()
+            }
+        });
+
+        if (!streak) return 0;
+
+        const now = new Date();
+        const timeDiff = (now - streak.lastUpdated) / (1000 * 60); // Convert to minutes
+        const remainingMinutes = limit - timeDiff;
+
+        if (remainingMinutes <= 0) return 0;
+
+        // Convert to hours and minutes
+        const hours = Math.floor(remainingMinutes / 60);
+        const minutes = Math.floor(remainingMinutes % 60);
+        return { hours, minutes };
     }
 };
