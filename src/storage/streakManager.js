@@ -6,9 +6,9 @@ const sequelize = require('sequelize');
 const MILESTONES = [
     { level: 10, emoji: '🌟' },
     { level: 25, emoji: '⭐' },
-    { level: 50, emoji: '💫' },
+    { level: 50, emoji: '🌙' },
     { level: 100, emoji: '🌠' },
-    { level: 250, emoji: '✨' },
+    { level: 250, emoji: '🌌' },
     { level: 500, emoji: '🎯' },
     { level: 1000, emoji: '🏆' }
 ];

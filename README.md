@@ -104,6 +104,34 @@ After adding the bot to your server:
 - Best streak tracking
 - Streak streak progress
 
+### Emoji System
+The bot uses various emojis to track and celebrate streaks:
+
+1. **Regular Streak Numbers**
+   - 1-10: 1️⃣, 2️⃣, 3️⃣, 4️⃣, 5️⃣, 6️⃣, 7️⃣, 8️⃣, 9️⃣, 🔟
+   - Above 10: 🔥
+
+2. **Regular Streak Milestones**
+   - 10: 🌟 (Glowing Star)
+   - 25: ⭐ (Star)
+   - 50: 🌙 (Crescent Moon)
+   - 100: 🌠 (Comet)
+   - 250: 🌌 (Milky Way)
+   - 500: 🎯 (Target)
+   - 1000: 🏆 (Trophy)
+
+3. **Streak Streak Milestones**
+   - 7 days: 📅 (Calendar)
+   - 14 days: 📆 (Tear-off Calendar)
+   - 30 days: 📊 (Chart)
+   - 60 days: 📈 (Chart Increasing)
+   - 90 days: 📉 (Chart Decreasing)
+   - 180 days: 📋 (Clipboard)
+   - 365 days: 📅 (Calendar)
+
+4. **Special Celebrations**
+   - 🎉 (Party Popper) for milestone announcements
+
 ## Database Migration
 
 The bot includes a robust database migration system that:
