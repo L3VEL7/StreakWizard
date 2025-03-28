@@ -6472,6 +6472,161 @@ If you still don't see the new commands, please check the Railway.app logs to se
 
 ---
 
+_**User**_
+
+Starting Container
+
+[ERROR] Failed to load command help.js: /app/src/commands/help.js:23
+
+};/
+
+  ^
+
+ 
+
+SyntaxError: Invalid regular expression: missing /
+
+    at internalCompileFunction (node:internal/vm:76:18)
+
+    at wrapSafe (node:internal/modules/cjs/loader:1283:20)
+
+    at Module._compile (node:internal/modules/cjs/loader:1328:27)
+
+    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+
+    at Module.load (node:internal/modules/cjs/loader:1203:32)
+
+    at Module._load (node:internal/modules/cjs/loader:1019:12)
+
+    at Module.require (node:internal/modules/cjs/loader:1231:19)
+
+    at require (node:internal/modules/helpers:177:18)
+
+    at Object.<anonymous> (/app/src/index.js:47:25)
+
+    at Module._compile (node:internal/modules/cjs/loader:1364:14)
+
+Loaded command: leaderboard
+
+Loaded command: remove
+
+Loaded command: setstreak_limit
+
+Loaded command: setup
+
+Database synchronized successfully
+
+Logged in as StreakWiz#2547
+
+Successfully registered application commands.
+
+---
+
+_**Assistant**_
+
+I see the issue. There's a syntax error in the `help.js` file. The error is showing that there's an invalid regular expression at line 23, but looking at the file, it seems there might be some hidden characters or formatting issues. Let me fix the `help.js` file:
+
+
+---
+
+_****_
+
+```diff
+              .setTitle('🔥 Streak Bot Help')
+              .addFields(
+-                 { name: 'Admin Commands', value: 
+-                     '`/setup` - Configure trigger words\n' +
+-                     '`/setstreak_limit` - Set time between streak updates\n' +
+-                     '`/remove` - Remove trigger words\n' +
+-                     '`/reset` - Reset streaks for users or trigger words\n' +
+-                     '`/toggle_streakstreak` - Enable/disable streak streak feature\n' +
+-                     '`/restart` - Restart the bot\n' +
+-                     '`/refresh` - Refresh command cache\n' +
+-                     '`/reload` - Force reload all commands\n' +
+-                     'Usage examples:\n' +
+-                     '• `/setup words:word1,word2,word3`\n' +
+-                     '• `/setstreak_limit interval:[hourly/daily/none]`\n' +
+-                     '• `/remove words:word1,word2,word3`\n' +
+-                     '• `/reset user:@user` or `/reset trigger:word`\n' +
+-                     '• `/toggle_streakstreak`\n' +
+-                     '• `/restart`\n' +
+-                     '• `/refresh`\n' +
++                 {
++                     name: 'Admin Commands',
++                     value: [
++                         '`/setup` - Configure trigger words',
++                         '`/setstreak_limit` - Set time between streak updates',
++                         '`/remove` - Remove trigger words',
++                         '`/reset` - Reset streaks for users or trigger words',
++                         '`/toggle_streakstreak` - Enable/disable streak streak feature',
++                         '`/restart` - Restart the bot',
++                         '`/refresh` - Refresh command cache',
++                         '`/reload` - Force reload all commands',
++                         '',
++                         'Usage examples:',
++                         '• `/setup words:word1,word2,word3`',
++                         '• `/setstreak_limit interval:[hourly/daily/none]`',
++                         '• `/remove words:word1,word2,word3`',
++                         '• `/reset user:@user` or `/reset trigger:word`',
++                         '• `/toggle_streakstreak`',
++                         '• `/restart`',
++                         '• `/refresh`',
+                          '• `/reload`'
++                     ].join('\n')
+                  },
+-                 { name: 'User Commands', value:
+-                     '`/profile` - View your or another user\'s streak profile\n' +
+-                     '`/leaderboard` - View streak leaderboard for a specific word\n' +
+-                     '`/stats` - View server-wide streak statistics\n' +
+-                     'Usage examples:\n' +
+-                     '• `/profile [@user]`\n' +
+-                     '• `/leaderboard word:trigger_word`\n' +
++                 {
++                     name: 'User Commands',
++                     value: [
++                         '`/profile` - View your or another user\'s streak profile',
++                         '`/leaderboard` - View streak leaderboard for a specific word',
++                         '`/stats` - View server-wide streak statistics',
++                         '',
++                         'Usage examples:',
++                         '• `/profile [@user]`',
++                         '• `/leaderboard word:trigger_word`',
+                          '• `/stats`'
++                     ].join('\n')
+                  },
+-                 { name: 'General', value:
+-                     '`/help` - Show this help message\n' +
++                 {
++                     name: 'General',
++                     value: [
++                         '`/help` - Show this help message',
+                          'Usage: `/help`'
++                     ].join('\n')
+                  }
+              )
+```
+
+---
+
+_****_
+
+I've rewritten the help command to use a cleaner approach with arrays and `join('\n')` instead of string concatenation. This should fix the syntax error and make the code more maintainable. The changes include:
+
+1. Using arrays to store the command descriptions and examples
+2. Using `join('\n')` to create the final string
+3. Better formatting and structure
+4. Added empty lines between sections for better readability
+5. Consistent formatting throughout the file
+
+The bot should now start without the syntax error. Once it's running, you should be able to:
+1. Use the `/help` command to see all available commands
+2. Use the `/reload` command to force a refresh of all commands
+3. Use the `/restart` command if needed
+
+Let me know if you still see any issues or if you need any other help!
+
+---
+
 
 
 ---

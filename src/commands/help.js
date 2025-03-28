@@ -10,37 +10,48 @@ module.exports = {
             .setColor('#0099ff')
             .setTitle('🔥 Streak Bot Help')
             .addFields(
-                { name: 'Admin Commands', value: 
-                    '`/setup` - Configure trigger words\n' +
-                    '`/setstreak_limit` - Set time between streak updates\n' +
-                    '`/remove` - Remove trigger words\n' +
-                    '`/reset` - Reset streaks for users or trigger words\n' +
-                    '`/toggle_streakstreak` - Enable/disable streak streak feature\n' +
-                    '`/restart` - Restart the bot\n' +
-                    '`/refresh` - Refresh command cache\n' +
-                    '`/reload` - Force reload all commands\n' +
-                    'Usage examples:\n' +
-                    '• `/setup words:word1,word2,word3`\n' +
-                    '• `/setstreak_limit interval:[hourly/daily/none]`\n' +
-                    '• `/remove words:word1,word2,word3`\n' +
-                    '• `/reset user:@user` or `/reset trigger:word`\n' +
-                    '• `/toggle_streakstreak`\n' +
-                    '• `/restart`\n' +
-                    '• `/refresh`\n' +
-                    '• `/reload`'
+                {
+                    name: 'Admin Commands',
+                    value: [
+                        '`/setup` - Configure trigger words',
+                        '`/setstreak_limit` - Set time between streak updates',
+                        '`/remove` - Remove trigger words',
+                        '`/reset` - Reset streaks for users or trigger words',
+                        '`/toggle_streakstreak` - Enable/disable streak streak feature',
+                        '`/restart` - Restart the bot',
+                        '`/refresh` - Refresh command cache',
+                        '`/reload` - Force reload all commands',
+                        '',
+                        'Usage examples:',
+                        '• `/setup words:word1,word2,word3`',
+                        '• `/setstreak_limit interval:[hourly/daily/none]`',
+                        '• `/remove words:word1,word2,word3`',
+                        '• `/reset user:@user` or `/reset trigger:word`',
+                        '• `/toggle_streakstreak`',
+                        '• `/restart`',
+                        '• `/refresh`',
+                        '• `/reload`'
+                    ].join('\n')
                 },
-                { name: 'User Commands', value:
-                    '`/profile` - View your or another user\'s streak profile\n' +
-                    '`/leaderboard` - View streak leaderboard for a specific word\n' +
-                    '`/stats` - View server-wide streak statistics\n' +
-                    'Usage examples:\n' +
-                    '• `/profile [@user]`\n' +
-                    '• `/leaderboard word:trigger_word`\n' +
-                    '• `/stats`'
+                {
+                    name: 'User Commands',
+                    value: [
+                        '`/profile` - View your or another user\'s streak profile',
+                        '`/leaderboard` - View streak leaderboard for a specific word',
+                        '`/stats` - View server-wide streak statistics',
+                        '',
+                        'Usage examples:',
+                        '• `/profile [@user]`',
+                        '• `/leaderboard word:trigger_word`',
+                        '• `/stats`'
+                    ].join('\n')
                 },
-                { name: 'General', value:
-                    '`/help` - Show this help message\n' +
-                    'Usage: `/help`'
+                {
+                    name: 'General',
+                    value: [
+                        '`/help` - Show this help message',
+                        'Usage: `/help`'
+                    ].join('\n')
                 }
             )
             .setFooter({ text: 'Start tracking your streaks today!' });
