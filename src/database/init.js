@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./config');
-const { GuildConfig, Streak } = require('./models');
+const { GuildConfig, Streak, migrateDatabase } = require('./models');
 
 async function initializeDatabase() {
     try {
@@ -8,8 +8,13 @@ async function initializeDatabase() {
         await sequelize.authenticate();
         console.log('Database connection established successfully.');
 
-        // Sync all models
-        await sequelize.sync();
+        // Run migrations first to preserve existing data
+        console.log('Running database migrations...');
+        await migrateDatabase();
+        console.log('Database migrations completed successfully.');
+
+        // Sync all models (this will create any missing tables without modifying existing ones)
+        await sequelize.sync({ alter: false });
         console.log('Database models synchronized successfully.');
 
         return true;
