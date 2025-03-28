@@ -40,5 +40,5 @@ module.exports = {
             .setFooter({ text: 'Start tracking your streaks today!' });
 
         await interaction.reply({ embeds: [embed], ephemeral: true });
-    },
-};
+    }
+}

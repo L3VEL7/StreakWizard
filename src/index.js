@@ -71,75 +71,136 @@ client.once('ready', async () => {
             commands.push(command.data.toJSON());
         }
 
+        // Register commands globally
         await client.application.commands.set(commands);
-        console.log('Successfully registered application commands.');
+        console.log('Successfully registered application commands globally.');
     } catch (error) {
         console.error('Error registering application commands:', error);
+        // Attempt to register commands per guild as fallback
+        try {
+            const guilds = await client.guilds.fetch();
+            for (const [guildId, guild] of guilds) {
+                try {
+                    await guild.commands.set(commands);
+                    console.log(`Successfully registered commands for guild: ${guild.name}`);
+                } catch (guildError) {
+                    console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
+                }
+            }
+        } catch (fallbackError) {
+            console.error('Failed to register commands per guild:', fallbackError);
+        }
     }
 });
 
-// Handle interactions
+// Handle interactions with improved error handling
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+    if (!command) {
+        console.warn(`Command not found: ${interaction.commandName}`);
+        return;
+    }
 
     try {
         await command.execute(interaction);
     } catch (error) {
-        console.error(error);
-        await interaction.reply({
-            content: 'There was an error executing this command!',
-            ephemeral: true
-        });
+        console.error(`Error executing command ${interaction.commandName}:`, error);
+        
+        // Provide more specific error messages based on the error type
+        let errorMessage = 'There was an error executing this command!';
+        if (error.name === 'SequelizeConnectionError') {
+            errorMessage = 'Database connection error. Please try again later.';
+        } else if (error.name === 'SequelizeValidationError') {
+            errorMessage = 'Invalid data provided. Please check your input.';
+        } else if (error.code === 50001) {
+            errorMessage = 'I don\'t have permission to perform this action.';
+        } else if (error.code === 50013) {
+            errorMessage = 'You don\'t have permission to use this command.';
+        }
+
+        try {
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({
+                    content: errorMessage,
+                    ephemeral: true
+                });
+            } else {
+                await interaction.reply({
+                    content: errorMessage,
+                    ephemeral: true
+                });
+            }
+        } catch (replyError) {
+            console.error('Failed to send error message:', replyError);
+        }
     }
 });
 
-// Handle message events for streak tracking
+// Handle message events with improved error handling and rate limiting
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    const triggers = await streakManager.getTriggerWords(message.guildId);
-    if (!triggers || triggers.length === 0) return;
+    try {
+        const triggers = await streakManager.getTriggerWords(message.guildId);
+        if (!triggers || triggers.length === 0) return;
 
-    const content = message.content.toLowerCase().trim();
-    console.log(`Message content: "${content}"`); // Debug log
-    for (const trigger of triggers) {
-        const processedTrigger = trigger.toLowerCase().trim();
-        console.log(`Comparing with trigger: "${processedTrigger}"`); // Debug log
-        // Ensure exact match by trimming and comparing lowercase versions
-        if (content === processedTrigger) {
-            const result = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
-            try {
-                if (result === -1) {
-                    // Rate limited
-                    const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, trigger);
-                    if (remainingTime === 0) {
-                        // If they can update now, try incrementing again
-                        const retryResult = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
-                        if (retryResult !== -1) {
-                            await handleStreakUpdate(message, retryResult, trigger);
+        const content = message.content.toLowerCase().trim();
+        
+        // Use Promise.race to implement a timeout for trigger processing
+        const triggerPromise = (async () => {
+            for (const trigger of triggers) {
+                const processedTrigger = trigger.toLowerCase().trim();
+                if (content === processedTrigger) {
+                    const result = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
+                    
+                    if (result === -1) {
+                        // Rate limited
+                        const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, trigger);
+                        if (remainingTime === 0) {
+                            // If they can update now, try incrementing again
+                            const retryResult = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
+                            if (retryResult !== -1) {
+                                await handleStreakUpdate(message, retryResult, trigger);
+                            }
+                        } else {
+                            let timeMessage = '⏳ Please wait ';
+                            if (remainingTime.hours > 0) {
+                                timeMessage += `${remainingTime.hours} hour${remainingTime.hours !== 1 ? 's' : ''} `;
+                            }
+                            if (remainingTime.minutes > 0) {
+                                timeMessage += `${remainingTime.minutes} minute${remainingTime.minutes !== 1 ? 's' : ''}`;
+                            }
+                            timeMessage += ' until your next streak update.';
+                            await message.reply(timeMessage);
                         }
-                    } else {
-                        let timeMessage = '⏳ Please wait ';
-                        if (remainingTime.hours > 0) {
-                            timeMessage += `${remainingTime.hours} hour${remainingTime.hours !== 1 ? 's' : ''} `;
-                        }
-                        if (remainingTime.minutes > 0) {
-                            timeMessage += `${remainingTime.minutes} minute${remainingTime.minutes !== 1 ? 's' : ''}`;
-                        }
-                        timeMessage += ' until your next streak update.';
-                        await message.reply(timeMessage);
+                        return;
                     }
-                    break;
-                }
 
-                await handleStreakUpdate(message, result, trigger);
-            } catch (error) {
-                console.error('Error reacting to message:', error);
+                    await handleStreakUpdate(message, result, trigger);
+                    return;
+                }
             }
-            break; // Exit loop after finding matching trigger
+        })();
+
+        // Set a timeout of 5 seconds for trigger processing
+        await Promise.race([
+            triggerPromise,
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Trigger processing timeout')), 5000)
+            )
+        ]);
+    } catch (error) {
+        console.error('Error processing message:', error);
+        if (error.message === 'Trigger processing timeout') {
+            console.warn('Trigger processing took too long, skipping');
+        } else {
+            try {
+                await message.reply('Sorry, there was an error processing your message. Please try again later.');
+            } catch (replyError) {
+                console.error('Failed to send error message:', replyError);
+            }
         }
     }
 });

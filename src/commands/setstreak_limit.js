@@ -26,7 +26,7 @@ module.exports = {
             }
 
             const minutes = parseInt(interaction.options.getString('interval'));
-            streakManager.setStreakLimit(interaction.guildId, minutes);
+            await streakManager.setStreakLimit(interaction.guildId, minutes);
 
             let response;
             if (minutes === 0) {
