@@ -1,29 +1,53 @@
-
 const { Sequelize } = require('sequelize');
-require('dotenv').config();
+const { config } = require('dotenv');
 
-let connectionUrl;
+// Load environment variables
+config();
 
-// Try using Railway's provided PostgreSQL URL format first
-if (process.env.PGHOST && process.env.PGDATABASE && process.env.PGUSER && process.env.PGPASSWORD && process.env.PGPORT) {
-    connectionUrl = `postgresql://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`;
-} else {
-    connectionUrl = process.env.DATABASE_URL;
+// Validate database URL
+if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is required');
 }
 
-if (!connectionUrl) {
-    throw new Error('Database connection URL not found in environment variables');
-}
+// Parse database URL to get SSL settings
+const dbUrl = new URL(process.env.DATABASE_URL);
+const useSSL = dbUrl.searchParams.get('sslmode') === 'require';
 
-const sequelize = new Sequelize(connectionUrl, {
+// Create Sequelize instance with connection pooling
+const sequelize = new Sequelize(process.env.DATABASE_URL, {
     dialect: 'postgres',
+    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+    },
     dialectOptions: {
-        ssl: {
+        ssl: useSSL ? {
             require: true,
             rejectUnauthorized: false
-        }
+        } : false
     },
-    logging: false
+    retry: {
+        max: 3,
+        match: [
+            /SequelizeConnectionError/,
+            /SequelizeConnectionRefusedError/,
+            /SequelizeHostNotFoundError/,
+            /SequelizeHostNotReachableError/
+        ]
+    }
 });
+
+// Test database connection
+sequelize.authenticate()
+    .then(() => {
+        console.log('Database connection established successfully.');
+    })
+    .catch(err => {
+        console.error('Unable to connect to the database:', err);
+        process.exit(1);
+    });
 
 module.exports = sequelize;

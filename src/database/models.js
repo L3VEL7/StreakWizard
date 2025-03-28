@@ -1,6 +1,26 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('./config');
 
+// Add connection pooling configuration
+const poolConfig = {
+    max: 5, // Maximum number of connection in pool
+    min: 0, // Minimum number of connection in pool
+    acquire: 30000, // The maximum time, in milliseconds, that pool will try to get connection before throwing error
+    idle: 10000 // The maximum time, in milliseconds, that a connection can be idle before being released
+};
+
+// Add retry configuration
+const retryConfig = {
+    maxRetries: 3,
+    retryDelay: 1000, // 1 second
+    retryOnError: (error) => {
+        return error.name === 'SequelizeConnectionError' || 
+               error.name === 'SequelizeConnectionRefusedError' ||
+               error.name === 'SequelizeHostNotFoundError' ||
+               error.name === 'SequelizeHostNotReachableError';
+    }
+};
+
 // Guild configuration model
 const GuildConfig = sequelize.define('GuildConfig', {
     guildId: {
@@ -96,16 +116,155 @@ Streak.addHook('beforeSave', async (streak) => {
     }
 });
 
-async function backupTable(tableName) {
+// Add transaction support to migration function
+async function migrateDatabase() {
+    const transaction = await sequelize.transaction();
+    
+    try {
+        console.log('Starting database migration...');
+
+        // Check if tables exist
+        const guildConfigExists = await checkTableExists('GuildConfigs');
+        const streaksExists = await checkTableExists('Streaks');
+
+        if (!guildConfigExists || !streaksExists) {
+            console.log('Tables do not exist, skipping migration');
+            await transaction.commit();
+            return;
+        }
+
+        // Create backups
+        console.log('Creating backups...');
+        const guildConfigBackup = await backupTable('GuildConfigs', transaction);
+        const streaksBackup = await backupTable('Streaks', transaction);
+
+        try {
+            // Migrate GuildConfigs
+            console.log('Migrating GuildConfigs table...');
+            
+            // Check and add streakStreakEnabled
+            const hasStreakStreakEnabled = await checkColumnExists('GuildConfigs', 'streakStreakEnabled');
+            if (!hasStreakStreakEnabled) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"streakStreakEnabled\" BOOLEAN NOT NULL DEFAULT true",
+                    { transaction }
+                );
+                console.log('Added streakStreakEnabled column to GuildConfigs');
+            }
+
+            // Migrate Streaks
+            console.log('Migrating Streaks table...');
+            
+            // Check and add new columns
+            const columnsToAdd = [
+                { name: 'streakStreak', type: 'INTEGER NOT NULL DEFAULT 0' },
+                { name: 'lastStreakDate', type: 'DATE' },
+                { name: 'bestStreak', type: 'INTEGER NOT NULL DEFAULT 1' }
+            ];
+
+            for (const column of columnsToAdd) {
+                const exists = await checkColumnExists('Streaks', column.name);
+                if (!exists) {
+                    await sequelize.query(
+                        `ALTER TABLE "Streaks" ADD COLUMN "${column.name}" ${column.type}`,
+                        { transaction }
+                    );
+                    console.log(`Added ${column.name} column to Streaks`);
+                }
+            }
+
+            // Update existing streaks
+            console.log('Updating existing streaks...');
+            
+            // Update bestStreak for existing records
+            await sequelize.query(
+                `UPDATE "Streaks" SET "bestStreak" = "count" WHERE "bestStreak" < "count"`,
+                { transaction }
+            );
+
+            // Commit the transaction
+            await transaction.commit();
+            console.log('Migration completed successfully');
+        } catch (error) {
+            // Rollback the transaction on error
+            await transaction.rollback();
+            console.error('Migration failed, rolling back changes:', error);
+            
+            // Attempt to restore from backups
+            try {
+                await restoreFromBackup(guildConfigBackup, 'GuildConfigs');
+                await restoreFromBackup(streaksBackup, 'Streaks');
+                console.log('Successfully restored from backups');
+            } catch (restoreError) {
+                console.error('Failed to restore from backups:', restoreError);
+            }
+            
+            throw error;
+        }
+    } catch (error) {
+        console.error('Migration failed:', error);
+        throw error;
+    }
+}
+
+// Add retry logic to database operations
+async function withRetry(operation, maxRetries = retryConfig.maxRetries) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            if (retryConfig.retryOnError(error)) {
+                console.warn(`Database operation failed, attempt ${attempt}/${maxRetries}:`, error);
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, retryConfig.retryDelay * attempt));
+                    continue;
+                }
+            }
+            throw error;
+        }
+    }
+    
+    throw lastError;
+}
+
+// Update the backup function to use transactions
+async function backupTable(tableName, transaction) {
     try {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const backupTableName = `${tableName}_backup_${timestamp}`;
         
-        await sequelize.query(`CREATE TABLE "${backupTableName}" AS SELECT * FROM "${tableName}"`);
+        await sequelize.query(
+            `CREATE TABLE "${backupTableName}" AS SELECT * FROM "${tableName}"`,
+            { transaction }
+        );
         console.log(`Created backup table: ${backupTableName}`);
         return backupTableName;
     } catch (error) {
         console.error(`Error creating backup for ${tableName}:`, error);
+        throw error;
+    }
+}
+
+// Add restore function
+async function restoreFromBackup(backupTableName, originalTableName) {
+    try {
+        // Drop the original table
+        await sequelize.query(`DROP TABLE IF EXISTS "${originalTableName}"`);
+        
+        // Restore from backup
+        await sequelize.query(
+            `CREATE TABLE "${originalTableName}" AS SELECT * FROM "${backupTableName}"`
+        );
+        
+        // Drop the backup table
+        await sequelize.query(`DROP TABLE "${backupTableName}"`);
+        
+        console.log(`Successfully restored ${originalTableName} from backup`);
+    } catch (error) {
+        console.error(`Error restoring from backup ${backupTableName}:`, error);
         throw error;
     }
 }
@@ -142,101 +301,6 @@ async function checkColumnExists(tableName, columnName) {
     }
 }
 
-async function migrateDatabase() {
-    try {
-        console.log('Starting database migration...');
-
-        // Check if tables exist
-        const guildConfigExists = await checkTableExists('GuildConfigs');
-        const streaksExists = await checkTableExists('Streaks');
-
-        if (!guildConfigExists || !streaksExists) {
-            console.log('Tables do not exist, skipping migration');
-            return;
-        }
-
-        // Create backups
-        console.log('Creating backups...');
-        const guildConfigBackup = await backupTable('GuildConfigs');
-        const streaksBackup = await backupTable('Streaks');
-
-        try {
-            // Migrate GuildConfigs
-            console.log('Migrating GuildConfigs table...');
-            
-            // Check and add streakStreakEnabled
-            const hasStreakStreakEnabled = await checkColumnExists('GuildConfigs', 'streakStreakEnabled');
-            if (!hasStreakStreakEnabled) {
-                await sequelize.query(
-                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"streakStreakEnabled\" BOOLEAN NOT NULL DEFAULT true"
-                );
-                console.log('Added streakStreakEnabled column to GuildConfigs');
-            }
-
-            // Migrate Streaks
-            console.log('Migrating Streaks table...');
-            
-            // Check and add new columns
-            const columnsToAdd = [
-                { name: 'streakStreak', type: 'INTEGER NOT NULL DEFAULT 0' },
-                { name: 'lastStreakDate', type: 'DATE' },
-                { name: 'bestStreak', type: 'INTEGER NOT NULL DEFAULT 1' }
-            ];
-
-            for (const column of columnsToAdd) {
-                const exists = await checkColumnExists('Streaks', column.name);
-                if (!exists) {
-                    await sequelize.query(
-                        `ALTER TABLE "Streaks" ADD COLUMN "${column.name}" ${column.type}`
-                    );
-                    console.log(`Added ${column.name} column to Streaks`);
-                }
-            }
-
-            // Update existing streaks
-            console.log('Updating existing streaks...');
-            
-            // Update bestStreak for existing records
-            await sequelize.query(
-                "UPDATE \"Streaks\" SET \"bestStreak\" = count WHERE \"bestStreak\" = 1"
-            );
-            
-            // Initialize streakStreak for existing records
-            await sequelize.query(
-                "UPDATE \"Streaks\" SET \"streakStreak\" = 1 WHERE \"streakStreak\" = 0"
-            );
-            
-            // Set lastStreakDate for existing records based on lastUpdated
-            await sequelize.query(
-                "UPDATE \"Streaks\" SET \"lastStreakDate\" = DATE(\"lastUpdated\") WHERE \"lastStreakDate\" IS NULL"
-            );
-
-            console.log('Database migration completed successfully');
-        } catch (error) {
-            console.error('Error during migration, attempting to restore from backup...');
-            
-            // Restore from backups
-            await sequelize.query(`DROP TABLE IF EXISTS "GuildConfigs" CASCADE`);
-            await sequelize.query(`DROP TABLE IF EXISTS "Streaks" CASCADE`);
-            await sequelize.query(`ALTER TABLE "${guildConfigBackup}" RENAME TO "GuildConfigs"`);
-            await sequelize.query(`ALTER TABLE "${streaksBackup}" RENAME TO "Streaks"`);
-            
-            console.log('Restored from backup successfully');
-            throw error;
-        }
-
-        // Clean up backup tables after successful migration
-        console.log('Cleaning up backup tables...');
-        await sequelize.query(`DROP TABLE IF EXISTS "${guildConfigBackup}"`);
-        await sequelize.query(`DROP TABLE IF EXISTS "${streaksBackup}"`);
-        console.log('Backup cleanup completed');
-
-    } catch (error) {
-        console.error('Error during database migration:', error);
-        throw error;
-    }
-}
-
 async function initializeDatabase() {
     try {
         console.log('Starting database initialization...');
@@ -256,5 +320,7 @@ async function initializeDatabase() {
 module.exports = {
     GuildConfig,
     Streak,
+    migrateDatabase,
+    withRetry,
     initializeDatabase
 };

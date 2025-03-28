@@ -65,6 +65,7 @@ After adding the bot to your server:
    - Use `/remove` to remove specific trigger words (admin only)
    - Use `/toggle_streakstreak` to enable/disable streak streak tracking (admin only)
    - Use `/reset` to reset streaks for users or trigger words (admin only)
+   - Use `/restart` to restart the bot (admin only)
 
 2. **User Commands**
    - Use `/profile` to view your or another user's streak profile

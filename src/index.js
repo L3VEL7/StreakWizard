@@ -19,6 +19,28 @@ if (!process.env.DATABASE_URL) {
     process.exit(1);
 }
 
+// Handle process exit
+process.on('exit', (code) => {
+    if (code === 2) {
+        console.log('Bot restart initiated...');
+        // The process manager (like PM2) will handle the actual restart
+    } else {
+        console.log(`Bot shutting down with exit code ${code}`);
+    }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit the process, let it continue running
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit the process, let it continue running
+});
+
 // Initialize database
 initializeDatabase().catch(error => {
     console.error('Failed to initialize database:', error);
