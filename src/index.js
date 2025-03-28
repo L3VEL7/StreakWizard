@@ -85,6 +85,9 @@ for (const file of commandFiles) {
 // Handle ready event
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+    console.log('=== Command Registration ===');
+    console.log(`Loaded ${client.commands.size} commands:`);
+    client.commands.forEach(cmd => console.log(`- ${cmd.data.name}`));
 
     try {
         // Register slash commands
@@ -101,6 +104,7 @@ client.once('ready', async () => {
         // Attempt to register commands per guild as fallback
         try {
             const guilds = await client.guilds.fetch();
+            console.log(`Attempting to register commands in ${guilds.size} guilds...`);
             for (const [guildId, guild] of guilds) {
                 try {
                     await guild.commands.set(commands);
