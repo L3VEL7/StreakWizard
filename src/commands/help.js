@@ -16,12 +16,18 @@ module.exports = {
                     '`/remove` - Remove trigger words\n' +
                     '`/reset` - Reset streaks for users or trigger words\n' +
                     '`/toggle_streakstreak` - Enable/disable streak streak feature\n' +
+                    '`/restart` - Restart the bot\n' +
+                    '`/refresh` - Refresh command cache\n' +
+                    '`/reload` - Force reload all commands\n' +
                     'Usage examples:\n' +
                     '• `/setup words:word1,word2,word3`\n' +
                     '• `/setstreak_limit interval:[hourly/daily/none]`\n' +
                     '• `/remove words:word1,word2,word3`\n' +
                     '• `/reset user:@user` or `/reset trigger:word`\n' +
-                    '• `/toggle_streakstreak`'
+                    '• `/toggle_streakstreak`\n' +
+                    '• `/restart`\n' +
+                    '• `/refresh`\n' +
+                    '• `/reload`'
                 },
                 { name: 'User Commands', value:
                     '`/profile` - View your or another user\'s streak profile\n' +

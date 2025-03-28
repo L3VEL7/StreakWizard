@@ -90,6 +90,15 @@ client.once('ready', async () => {
     client.commands.forEach(cmd => console.log(`- ${cmd.data.name}`));
 
     try {
+        // First, delete all existing commands
+        const existingCommands = await client.application.commands.fetch();
+        console.log(`Found ${existingCommands.size} existing commands`);
+        
+        for (const command of existingCommands.values()) {
+            await command.delete();
+            console.log(`Deleted command: ${command.name}`);
+        }
+
         // Register slash commands
         const commands = [];
         for (const command of client.commands.values()) {
@@ -107,6 +116,13 @@ client.once('ready', async () => {
             console.log(`Attempting to register commands in ${guilds.size} guilds...`);
             for (const [guildId, guild] of guilds) {
                 try {
+                    // Delete existing commands in the guild
+                    const existingGuildCommands = await guild.commands.fetch();
+                    for (const command of existingGuildCommands.values()) {
+                        await command.delete();
+                    }
+                    
+                    // Register new commands
                     await guild.commands.set(commands);
                     console.log(`Successfully registered commands for guild: ${guild.name}`);
                 } catch (guildError) {
