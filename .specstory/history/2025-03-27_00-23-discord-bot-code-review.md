@@ -5957,6 +5957,198 @@ This works seamlessly with Railway.app's infrastructure, and you can monitor the
 
 ---
 
+_**User**_
+
+the bot seems to still use the old version
+
+---
+
+_**Assistant**_
+
+If the bot is still using the old version after a restart, there might be a few reasons for this. Let's check and fix the potential issues:
+
+1. First, let's verify that the new command is being loaded properly. Let's check the command loading in `index.js`:
+
+
+---
+
+_****_
+
+Read file: src/index.js
+
+---
+
+_****_
+
+I see the issue. The command registration in `index.js` is using the wrong method. Let's fix this and also add some additional logging to help diagnose command loading issues:
+
+
+
+---
+
+_****_
+
+```diff
+  client.once('ready', async () => {
+      console.log(`Logged in as ${client.user.tag}`);
++     console.log('=== Command Registration ===');
++     console.log(`Loaded ${client.commands.size} commands:`);
++     client.commands.forEach(cmd => console.log(`- ${cmd.data.name}`));
+  
+      try {
+          try {
+              const guilds = await client.guilds.fetch();
++             console.log(`Attempting to register commands in ${guilds.size} guilds...`);
+              for (const [guildId, guild] of guilds) {
+                  try {
+```
+
+---
+
+_****_
+
+Now, let's also check if the restart command is in the correct location. Let's verify the directory structure:
+
+
+---
+
+_****_
+
+<details>
+            <summary>Listed directory src/commands • **10** results</summary>
+        
+| Name |
+|-------|
+| 📄 `restart.js` |
+| 📄 `setstreak_limit.js` |
+| 📄 `help.js` |
+| 📄 `toggle_streakstreak.js` |
+| 📄 `profile.js` |
+| 📄 `stats.js` |
+| 📄 `reset.js` |
+| 📄 `setup.js` |
+| 📄 `remove.js` |
+| 📄 `leaderboard.js` |
+
+</details>
+
+---
+
+_****_
+
+The restart command is in the correct location. Let's try to force a command refresh by adding a command to clear the command cache. We'll create a new command called `refresh`:
+
+
+---
+
+_****_
+
+```diff
+- 
++ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
++ 
++ module.exports = {
++     data: new SlashCommandBuilder()
++         .setName('refresh')
++         .setDescription('Refresh the bot\'s command cache (Admin only)')
++         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
++ 
++     async execute(interaction) {
++         try {
++             await interaction.deferReply({ ephemeral: true });
++ 
++             // Check if the user has administrator permissions
++             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
++                 await interaction.editReply({
++                     content: '❌ You do not have permission to use this command.',
++                     ephemeral: true
++                 });
++                 return;
++             }
++ 
++             // Clear the command cache
++             interaction.client.commands.clear();
++ 
++             // Reload all commands
++             const fs = require('fs');
++             const path = require('path');
++             const commandsPath = path.join(__dirname);
++             const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
++ 
++             for (const file of commandFiles) {
++                 try {
++                     const filePath = path.join(commandsPath, file);
++                     const command = require(filePath);
++ 
++                     if (!command.data || !command.data.name || !command.execute) {
++                         console.warn(`[WARNING] The command at ${file} is missing required properties. Skipping.`);
++                         continue;
++                     }
++ 
++                     interaction.client.commands.set(command.data.name, command);
++                     console.log(`Reloaded command: ${command.data.name}`);
++                 } catch (error) {
++                     console.error(`[ERROR] Failed to reload command ${file}:`, error);
++                 }
++             }
++ 
++             // Register the refreshed commands
++             const commands = [];
++             for (const command of interaction.client.commands.values()) {
++                 commands.push(command.data.toJSON());
++             }
++ 
++             try {
++                 await interaction.client.application.commands.set(commands);
++                 await interaction.editReply({
++                     content: '✅ Command cache refreshed successfully!',
++                     ephemeral: true
++                 });
++             } catch (error) {
++                 console.error('Error registering refreshed commands:', error);
++                 await interaction.editReply({
++                     content: '❌ Failed to register refreshed commands. Please try using `/restart` instead.',
++                     ephemeral: true
++                 });
++             }
++         } catch (error) {
++             console.error('Error in refresh command:', error);
++             try {
++                 await interaction.editReply({
++                     content: '❌ An error occurred while trying to refresh the commands.',
++                     ephemeral: true
++                 });
++             } catch (replyError) {
++                 console.error('Failed to send error message:', replyError);
++             }
++         }
++     }
++ }; 
+```
+
+---
+
+_****_
+
+Now you have two options to get the new commands working:
+
+1. Use the new `/refresh` command to reload the command cache without restarting the bot
+2. Use the `/restart` command to completely restart the bot
+
+Try using the `/refresh` command first. If that doesn't work, then use the `/restart` command. The `/refresh` command will:
+1. Clear the current command cache
+2. Reload all commands from the files
+3. Re-register the commands with Discord
+
+If you still see the old version after trying both commands, there might be an issue with the deployment on Railway.app. In that case, you might need to:
+1. Check the Railway.app logs to see if there are any errors
+2. Verify that the new files are actually deployed to Railway.app
+3. Consider redeploying the application on Railway.app
+
+Would you like me to help you check any of these potential issues?
+
+---
+
 
 
 ---
