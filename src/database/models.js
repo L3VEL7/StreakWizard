@@ -182,6 +182,30 @@ async function migrateDatabase() {
                 { transaction }
             );
 
+            // Ensure all required columns exist with correct types
+            const requiredColumns = {
+                'id': 'INTEGER PRIMARY KEY',
+                'guildId': 'STRING NOT NULL',
+                'userId': 'STRING NOT NULL',
+                'triggerWord': 'STRING NOT NULL',
+                'count': 'INTEGER NOT NULL DEFAULT 1',
+                'bestStreak': 'INTEGER NOT NULL DEFAULT 1',
+                'streakStreak': 'INTEGER NOT NULL DEFAULT 0',
+                'lastStreakDate': 'DATE',
+                'lastUpdated': 'DATE NOT NULL DEFAULT CURRENT_TIMESTAMP'
+            };
+
+            for (const [columnName, columnType] of Object.entries(requiredColumns)) {
+                const exists = await checkColumnExists('Streaks', columnName);
+                if (!exists) {
+                    await sequelize.query(
+                        `ALTER TABLE "Streaks" ADD COLUMN "${columnName}" ${columnType}`,
+                        { transaction }
+                    );
+                    console.log(`Added missing column ${columnName} to Streaks`);
+                }
+            }
+
             // Commit the transaction
             await transaction.commit();
             console.log('Migration completed successfully');
@@ -198,11 +222,10 @@ async function migrateDatabase() {
             } catch (restoreError) {
                 console.error('Failed to restore from backups:', restoreError);
             }
-            
-            throw error;
         }
     } catch (error) {
         console.error('Migration failed:', error);
+        await transaction.rollback();
         throw error;
     }
 }
@@ -230,73 +253,66 @@ async function withRetry(operation, maxRetries = retryConfig.maxRetries) {
     throw lastError;
 }
 
-// Update the backup function to use transactions
-async function backupTable(tableName, transaction) {
-    try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const backupTableName = `${tableName}_backup_${timestamp}`;
-        
-        await sequelize.query(
-            `CREATE TABLE "${backupTableName}" AS SELECT * FROM "${tableName}"`,
-            { transaction }
-        );
-        console.log(`Created backup table: ${backupTableName}`);
-        return backupTableName;
-    } catch (error) {
-        console.error(`Error creating backup for ${tableName}:`, error);
-        throw error;
-    }
-}
-
-// Add restore function
-async function restoreFromBackup(backupTableName, originalTableName) {
-    try {
-        // Drop the original table
-        await sequelize.query(`DROP TABLE IF EXISTS "${originalTableName}"`);
-        
-        // Restore from backup
-        await sequelize.query(
-            `CREATE TABLE "${originalTableName}" AS SELECT * FROM "${backupTableName}"`
-        );
-        
-        // Drop the backup table
-        await sequelize.query(`DROP TABLE "${backupTableName}"`);
-        
-        console.log(`Successfully restored ${originalTableName} from backup`);
-    } catch (error) {
-        console.error(`Error restoring from backup ${backupTableName}:`, error);
-        throw error;
-    }
-}
-
+// Helper function to check if a table exists
 async function checkTableExists(tableName) {
     try {
         const result = await sequelize.query(
-            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)",
-            {
-                bind: [tableName],
-                type: sequelize.QueryTypes.SELECT
-            }
+            `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '${tableName}')`,
+            { type: sequelize.QueryTypes.SELECT }
         );
         return result[0].exists;
     } catch (error) {
         console.error(`Error checking if table ${tableName} exists:`, error);
+        return false;
+    }
+}
+
+// Helper function to check if a column exists
+async function checkColumnExists(tableName, columnName) {
+    try {
+        const result = await sequelize.query(
+            `SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = '${tableName}' AND column_name = '${columnName}')`,
+            { type: sequelize.QueryTypes.SELECT }
+        );
+        return result[0].exists;
+    } catch (error) {
+        console.error(`Error checking if column ${columnName} exists in table ${tableName}:`, error);
+        return false;
+    }
+}
+
+// Helper function to backup a table
+async function backupTable(tableName, transaction) {
+    try {
+        const result = await sequelize.query(
+            `SELECT * FROM "${tableName}"`,
+            { transaction, type: sequelize.QueryTypes.SELECT }
+        );
+        return result;
+    } catch (error) {
+        console.error(`Error backing up table ${tableName}:`, error);
         throw error;
     }
 }
 
-async function checkColumnExists(tableName, columnName) {
+// Helper function to restore a table from backup
+async function restoreFromBackup(backup, tableName) {
     try {
-        const result = await sequelize.query(
-            "SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = $1 AND column_name = $2)",
-            {
-                bind: [tableName, columnName],
-                type: sequelize.QueryTypes.SELECT
-            }
-        );
-        return result[0].exists;
+        // Clear existing data
+        await sequelize.query(`DELETE FROM "${tableName}"`, { type: sequelize.QueryTypes.DELETE });
+        
+        // Restore from backup
+        if (backup && backup.length > 0) {
+            const columns = Object.keys(backup[0]);
+            const values = backup.map(row => columns.map(col => row[col]));
+            
+            await sequelize.query(
+                `INSERT INTO "${tableName}" (${columns.map(col => `"${col}"`).join(', ')}) VALUES ${values.map(row => `(${row.map(val => typeof val === 'string' ? `'${val}'` : val).join(', ')})`).join(', ')}`,
+                { type: sequelize.QueryTypes.INSERT }
+            );
+        }
     } catch (error) {
-        console.error(`Error checking if column ${columnName} exists in ${tableName}:`, error);
+        console.error(`Error restoring table ${tableName} from backup:`, error);
         throw error;
     }
 }
@@ -308,8 +324,8 @@ async function initializeDatabase() {
         // Run migration first
         await migrateDatabase();
         
-        // Then sync the models
-        await sequelize.sync({ alter: true });
+        // Then sync the models without altering existing tables
+        await sequelize.sync({ alter: false });
         console.log('Database synchronized successfully');
     } catch (error) {
         console.error('Error initializing database:', error);
