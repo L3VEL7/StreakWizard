@@ -36,5 +36,10 @@
   },
   "cacheDirectories": [
     "node_modules"
-  ]
+  ],
+  "railway": {
+    "build": {
+      "builder": "nixpacks"
+    }
+  }
 }
