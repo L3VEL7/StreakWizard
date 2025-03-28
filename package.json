@@ -4,14 +4,13 @@
   "description": "A Discord bot that tracks user streaks based on configurable trigger words. Users can build streaks by sending specific messages, and compete on separate leaderboards for each trigger word.",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node src/database/init.js && node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "jest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
-    "migrate": "node src/database/migrate.js",
-    "postinstall": "node src/database/models.js"
+    "migrate": "node src/database/migrate.js"
   },
   "keywords": ["discord", "bot", "streak", "tracking"],
   "author": "",
