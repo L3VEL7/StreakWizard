@@ -218,14 +218,15 @@ module.exports = {
 
             // Check for milestone achievement
             const milestone = MILESTONES.find(m => m.level === streak.count);
+            const result = {
+                count: streak.count,
+                streakStreak: streak.streakStreak
+            };
+
             if (milestone) {
-                return {
-                    count: streak.count,
-                    streakStreak: streak.streakStreak,
-                    milestone: {
-                        level: milestone.level,
-                        emoji: milestone.emoji
-                    }
+                result.milestone = {
+                    level: milestone.level,
+                    emoji: milestone.emoji
                 };
             }
 
@@ -233,16 +234,14 @@ module.exports = {
             if (await this.isStreakStreakEnabled(guildId)) {
                 const streakStreakMilestone = STREAK_STREAK_MILESTONES.find(m => m.level === streak.streakStreak);
                 if (streakStreakMilestone) {
-                    return {
-                        count: streak.count,
-                        streakStreak: streak.streakStreak,
-                        streakStreakMilestone: {
-                            level: streakStreakMilestone.level,
-                            emoji: streakStreakMilestone.emoji
-                        }
+                    result.streakStreakMilestone = {
+                        level: streakStreakMilestone.level,
+                        emoji: streakStreakMilestone.emoji
                     };
                 }
             }
+
+            return result;
         }
 
         return { 

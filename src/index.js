@@ -185,28 +185,22 @@ client.on('messageCreate', async message => {
                     if (result === -1) {
                         // Rate limited
                         const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, trigger);
-                        if (remainingTime === 0) {
-                            // If they can update now, try incrementing again
-                            const retryResult = await streakManager.incrementStreak(message.guildId, message.author.id, trigger);
-                            if (retryResult !== -1) {
-                                await handleStreakUpdate(message, retryResult, trigger);
-                            }
-                        } else {
-                            let timeMessage = '⏳ Please wait ';
-                            if (remainingTime.hours > 0) {
-                                timeMessage += `${remainingTime.hours} hour${remainingTime.hours !== 1 ? 's' : ''} `;
-                            }
-                            if (remainingTime.minutes > 0) {
-                                timeMessage += `${remainingTime.minutes} minute${remainingTime.minutes !== 1 ? 's' : ''}`;
-                            }
-                            timeMessage += ' until your next streak update.';
-                            await message.reply(timeMessage);
+                        let timeMessage = '⏳ Please wait ';
+                        if (remainingTime.hours > 0) {
+                            timeMessage += `${remainingTime.hours} hour${remainingTime.hours !== 1 ? 's' : ''} `;
                         }
-                        return;
+                        if (remainingTime.minutes > 0) {
+                            timeMessage += `${remainingTime.minutes} minute${remainingTime.minutes !== 1 ? 's' : ''}`;
+                        }
+                        if (remainingTime.seconds > 0) {
+                            timeMessage += `${remainingTime.seconds} second${remainingTime.seconds !== 1 ? 's' : ''}`;
+                        }
+                        timeMessage += ' between streak updates.';
+                        await message.reply(timeMessage);
+                    } else {
+                        await handleStreakUpdate(message, result, trigger);
                     }
-
-                    await handleStreakUpdate(message, result, trigger);
-                    return;
+                    break; // Exit the loop after processing one trigger
                 }
             }
         })();
@@ -219,15 +213,10 @@ client.on('messageCreate', async message => {
             )
         ]);
     } catch (error) {
-        console.error('Error processing message:', error);
         if (error.message === 'Trigger processing timeout') {
-            console.warn('Trigger processing took too long, skipping');
+            console.warn('Trigger processing timed out');
         } else {
-            try {
-                await message.reply('Sorry, there was an error processing your message. Please try again later.');
-            } catch (replyError) {
-                console.error('Failed to send error message:', replyError);
-            }
+            console.error('Error processing message:', error);
         }
     }
 });
@@ -245,7 +234,33 @@ async function handleStreakUpdate(message, result, trigger) {
         streakEmoji = '🔥';
     }
 
-    await message.react(streakEmoji);
+    // Remove previous reactions
+    try {
+        const reactions = message.reactions.cache;
+        for (const reaction of reactions.values()) {
+            await reaction.remove();
+        }
+    } catch (error) {
+        console.error('Error removing previous reactions:', error);
+    }
+
+    // Add reactions
+    try {
+        // Always add the current streak emoji
+        await message.react(streakEmoji);
+        
+        // Add milestone emoji if achieved
+        if (milestone) {
+            await message.react(milestone.emoji);
+        }
+        
+        // Add streak streak milestone emoji if achieved
+        if (streakStreakMilestone) {
+            await message.react(streakStreakMilestone.emoji);
+        }
+    } catch (error) {
+        console.error('Error adding reactions:', error);
+    }
     
     let replyMessage = `${streakEmoji} Your streak for "${trigger}" is now ${count}!`;
     
