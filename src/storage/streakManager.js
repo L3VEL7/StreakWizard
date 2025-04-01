@@ -1,6 +1,6 @@
 const { GuildConfig, Streak } = require('../database/models');
 const { Op } = require('sequelize');
-const { sequelize } = require('../database/models');
+const sequelize = require('../database/config');
 
 // Define milestone levels
 const MILESTONES = [
