@@ -976,11 +976,11 @@ module.exports = {
         const results = [];
         for (const streak of streaks) {
             try {
-                // Get username from Discord if possible (may not be available in all contexts)
-                let username = streak.userId;
+                // For simplicity, we'll return the userId and let the command handle username fetching
+                // since we don't have direct access to the Discord client here
                 results.push({
                     userId: streak.userId,
-                    username: username,
+                    username: streak.userId, // We'll fetch the actual username in the command
                     count: streak.count,
                     streakStreak: streak.streakStreak || 0
                 });

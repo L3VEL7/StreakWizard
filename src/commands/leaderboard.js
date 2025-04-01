@@ -25,10 +25,26 @@ module.exports = {
                 .setDescription('Top 10 users for each trigger word:');
 
             for (const word of triggerWords) {
-                const leaderboard = await streakManager.getLeaderboard(interaction.guildId, word);
+                let leaderboard = await streakManager.getLeaderboard(interaction.guildId, word);
                 if (leaderboard && leaderboard.length > 0) {
-                    const leaderboardText = leaderboard
-                        .slice(0, 10)
+                    // Fetch usernames for all users in the leaderboard
+                    const leaderboardEntries = leaderboard.slice(0, 10); // Only process top 10
+                    
+                    // Fetch user information for each entry
+                    for (const entry of leaderboardEntries) {
+                        try {
+                            // Try to fetch the user from Discord
+                            const user = await interaction.client.users.fetch(entry.userId);
+                            if (user) {
+                                entry.username = user.username;
+                            }
+                        } catch (userError) {
+                            console.warn(`Could not fetch user ${entry.userId}:`, userError);
+                            // Keep userId as username if fetch fails
+                        }
+                    }
+                    
+                    const leaderboardText = leaderboardEntries
                         .map((entry, index) => {
                             const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '•';
                             return `${medal} ${entry.username}: ${entry.count} streaks`;
