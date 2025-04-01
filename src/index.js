@@ -177,34 +177,61 @@ client.once('ready', async () => {
             
             // Add a timeout promise to prevent getting stuck
             const registerCommands = async () => {
-                for (const [guildId, guild] of guilds) {
-                    try {
-                        // Break if we've processed too many guilds (safety measure)
-                        if (processedGuilds >= maxGuildsToProcess) {
-                            console.log(`⚠️ Reached maximum guild limit (${maxGuildsToProcess}). Skipping remaining guilds.`);
-                            break;
+                // Convert the guilds Map into an array for easier batching
+                const guildArray = Array.from(guilds.values()).slice(0, maxGuildsToProcess);
+                console.log(`Preparing to register commands to ${guildArray.length} guilds (max: ${maxGuildsToProcess})`);
+                
+                // Process guilds in smaller batches for better efficiency
+                const BATCH_SIZE = 3;
+                let processedGuilds = 0;
+                
+                for (let i = 0; i < guildArray.length; i += BATCH_SIZE) {
+                    // Take a slice of guilds to process in this batch
+                    const batch = guildArray.slice(i, i + BATCH_SIZE);
+                    console.log(`Processing batch ${Math.floor(i/BATCH_SIZE) + 1} with ${batch.length} guilds...`);
+                    
+                    // Process this batch concurrently
+                    const batchPromises = batch.map(async (guild) => {
+                        try {
+                            console.log(`[${processedGuilds + 1}/${guildArray.length}] Registering commands to guild: ${guild.name} (${guild.id})`);
+                            await rest.put(
+                                Routes.applicationGuildCommands(client.user.id, guild.id),
+                                { body: commands }
+                            );
+                            console.log(`✅ Commands registered to guild: ${guild.name} (${guild.id})`);
+                            return true; // Registration successful
+                        } catch (error) {
+                            console.error(`❌ Error registering commands to guild ${guild.name} (${guild.id}):`, error.message);
+                            return false; // Registration failed
                         }
-                        
-                        console.log(`Registering commands to guild: ${guild.name}`);
-                        await rest.put(
-                            Routes.applicationGuildCommands(client.user.id, guildId),
-                            { body: commands }
-                        );
-                        console.log(`✅ Commands registered to guild: ${guild.name}`);
-                        processedGuilds++;
-                    } catch (error) {
-                        console.error(`Error registering commands to guild ${guild.name}:`, error);
+                    });
+                    
+                    // Wait for all guilds in this batch to be processed
+                    const batchResults = await Promise.allSettled(batchPromises);
+                    const successfulResults = batchResults.filter(result => 
+                        result.status === 'fulfilled' && result.value === true
+                    ).length;
+                    
+                    processedGuilds += successfulResults;
+                    console.log(`Batch completed: ${successfulResults}/${batch.length} guilds successfully registered`);
+                    
+                    // Add a small delay between batches to avoid rate limiting
+                    if (i + BATCH_SIZE < guildArray.length) {
+                        console.log(`Waiting 2 seconds before next batch...`);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
                     }
                 }
+                
                 return processedGuilds;
             };
             
             // Use a Promise.race with a timeout to prevent getting stuck
             try {
                 const timeout = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Command registration timed out')), 30000)
+                    setTimeout(() => reject(new Error('Command registration timed out')), 120000)
                 );
                 
+                console.log('Starting command registration with 2-minute timeout...');
                 const count = await Promise.race([registerCommands(), timeout]);
                 console.log(`✅ Commands registered to ${count} guilds`);
             } catch (timeoutError) {
@@ -218,9 +245,10 @@ client.once('ready', async () => {
             // Add timeout handling here too
             try {
                 const timeout = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Global command registration timed out')), 15000)
+                    setTimeout(() => reject(new Error('Global command registration timed out')), 60000)
                 );
                 
+                console.log('Starting global command registration with 1-minute timeout...');
                 await Promise.race([
                     rest.put(Routes.applicationCommands(client.user.id), { body: commands }),
                     timeout
