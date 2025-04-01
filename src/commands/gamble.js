@@ -39,7 +39,10 @@ module.exports = {
             }
 
             // Check if user has enough streaks
-            const currentStreak = await streakManager.getStreak(interaction.guildId, interaction.user.id, word);
+            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
+            const userStreak = userStreaks.find(s => s.trigger === word);
+            const currentStreak = userStreak ? userStreak.count : 0;
+
             if (!currentStreak || currentStreak < amount) {
                 await interaction.editReply({
                     content: `❌ You don't have enough streaks for "${word}". You have ${currentStreak || 0} streaks.`,
@@ -49,7 +52,13 @@ module.exports = {
             }
 
             // Perform the gamble
-            const result = await streakManager.gambleStreaks(interaction.guildId, interaction.user.id, word, amount);
+            const result = await streakManager.gambleStreak(
+                interaction.guildId, 
+                interaction.user.id, 
+                word, 
+                (amount / currentStreak) * 100, // Convert amount to percentage
+                'heads' // Default choice for simplicity
+            );
             
             if (result.won) {
                 await interaction.editReply({
@@ -70,4 +79,4 @@ module.exports = {
             });
         }
     },
-}; 
+};

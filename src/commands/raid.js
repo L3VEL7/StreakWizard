@@ -39,8 +39,9 @@ module.exports = {
             }
 
             // Check if user has enough streaks to raid
-            const userStreak = await streakManager.getStreak(interaction.guildId, interaction.user.id, word);
-            if (!userStreak || userStreak < 2) {
+            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
+            const userStreak = userStreaks.find(s => s.trigger === word);
+            if (!userStreak || userStreak.count < 2) {
                 await interaction.editReply({
                     content: '❌ You need at least 2 streaks to raid.',
                     ephemeral: true
@@ -49,8 +50,9 @@ module.exports = {
             }
 
             // Check if target has enough streaks to be raided
-            const targetStreak = await streakManager.getStreak(interaction.guildId, target.id, word);
-            if (!targetStreak || targetStreak < 2) {
+            const targetStreaks = await streakManager.getUserStreaks(interaction.guildId, target.id);
+            const targetStreak = targetStreaks.find(s => s.trigger === word);
+            if (!targetStreak || targetStreak.count < 2) {
                 await interaction.editReply({
                     content: `${target.username} doesn't have enough streaks to raid.`,
                     ephemeral: true
@@ -59,12 +61,11 @@ module.exports = {
             }
 
             // Perform the raid
-            const result = await streakManager.performRaid(
+            const result = await streakManager.raidStreak(
                 interaction.guildId,
                 interaction.user.id,
                 target.id,
-                word,
-                raidConfig
+                word
             );
 
             if (result.success) {
