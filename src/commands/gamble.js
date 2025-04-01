@@ -40,7 +40,7 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ ephemeral: false });
 
         try {
             // Check if gambling is enabled in this server
@@ -48,7 +48,7 @@ module.exports = {
             if (!isGamblingEnabled) {
                 await interaction.editReply({
                     content: '❌ Gambling is currently disabled in this server.',
-                    ephemeral: true
+                    ephemeral: false
                 });
                 return;
             }
@@ -61,7 +61,7 @@ module.exports = {
             if (!currentStreak || currentStreak < amount) {
                 await interaction.editReply({
                     content: `❌ You don't have enough streaks for "${word}". You have ${currentStreak || 0} streaks.`,
-                    ephemeral: true
+                    ephemeral: false
                 });
                 return;
             }
@@ -79,23 +79,23 @@ module.exports = {
                 'heads' // Default choice for simplicity
             );
             
-            // Display the gamble result to the user
+            // Display the gamble result publicly
             if (result.won) {
                 await interaction.editReply({
-                    content: `🎉 Congratulations! You won ${result.gambleAmount} streaks!\nYour new streak for "${word}" is ${result.newCount}!`,
-                    ephemeral: true
+                    content: `🎉 ${interaction.user} won ${result.gambleAmount} streaks on "${word}"!\nNew streak: ${result.newCount}!`,
+                    ephemeral: false
                 });
             } else {
                 await interaction.editReply({
-                    content: `😢 Sorry, you lost ${amount} streaks.\nYour new streak for "${word}" is ${result.newCount}.`,
-                    ephemeral: true
+                    content: `😢 ${interaction.user} lost ${amount} streaks on "${word}".\nNew streak: ${result.newCount}.`,
+                    ephemeral: false
                 });
             }
         } catch (error) {
             console.error('Error in gamble command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while processing your gamble.',
-                ephemeral: true
+                ephemeral: false
             });
         }
     },

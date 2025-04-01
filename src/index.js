@@ -109,118 +109,16 @@ for (const file of commandFiles) {
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log('=== Command Registration ===');
-    console.log(`Loaded ${client.commands.size} commands:`);
-    client.commands.forEach(cmd => console.log(`- ${cmd.data.name}`));
-
+    console.log(`Loaded ${client.commands.size} commands in memory`);
+    
+    // COMPLETELY SKIP REGISTRATION - This line is critical
+    console.log('❗ COMMAND REGISTRATION BYPASSED - Bot will use existing commands only');
+    console.log('❗ To register commands, use the manual scripts in your local environment');
+    return; // This return is very important - it prevents all command registration
+    
     try {
-        // Check if we should skip registration
-        const SKIP_REGISTRATION = process.env.SKIP_REGISTRATION === 'true';
-        
-        if (SKIP_REGISTRATION) {
-            console.log('⚠️ SKIPPING COMMAND REGISTRATION as requested by SKIP_REGISTRATION=true');
-            console.log('Commands will not be updated. Use this only for emergency situations.');
-            return;
-        }
-        
-        // Register slash commands
-        const commands = [];
-        for (const command of client.commands.values()) {
-            commands.push(command.data.toJSON());
-        }
-
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        
-        // FORCE_CLEANUP MODE: Set to true to clean up all commands first
-        const FORCE_CLEANUP = false; // Changed to false to prevent constant cleanup
-
-        // Check if we're in development mode
-        const DEV_MODE = process.env.DEV_MODE === 'true';
-        
-        console.log(`Environment: ${DEV_MODE ? 'DEVELOPMENT' : 'PRODUCTION'}`);
-        
-        // First, always clear all commands everywhere
-        if (FORCE_CLEANUP) {
-            console.log('🧹 FORCE CLEANUP MODE: Clearing all commands everywhere...');
-            
-            // First clear global commands
-            try {
-                console.log('Clearing global commands...');
-                await rest.put(
-                    Routes.applicationCommands(client.user.id),
-                    { body: [] }
-                );
-                console.log('✅ Global commands cleared');
-            } catch (error) {
-                console.error('Error clearing global commands:', error.message);
-            }
-            
-            // Then clear all guild commands
-            const guilds = await client.guilds.fetch();
-            console.log(`Clearing commands from ${guilds.size} guilds...`);
-            
-            for (const [guildId, guild] of guilds) {
-                try {
-                    console.log(`Clearing commands from guild: ${guild.name}`);
-                    await rest.put(
-                        Routes.applicationGuildCommands(client.user.id, guildId),
-                        { body: [] }
-                    );
-                    console.log(`✅ Commands cleared from guild: ${guild.name}`);
-                } catch (error) {
-                    console.error(`Error clearing commands from guild ${guild.name}:`, error.message);
-                }
-            }
-            
-            console.log('🧹 Command cleanup completed');
-        }
-        
-        // Simplified command registration - register to both global and guild
-        console.log('🔄 Registering commands...');
-
-        // Register commands globally first (this is the most important)
-        try {
-            console.log('Registering global commands - this may take up to an hour to propagate...');
-            try {
-                await rest.put(
-                    Routes.applicationCommands(client.user.id),
-                    { body: commands }
-                );
-                console.log('✅ Global commands registered');
-            } catch (globalError) {
-                console.error('Error registering global commands:', globalError.message);
-            }
-            
-            // If in dev mode, also register to a few key guilds for faster testing
-            if (DEV_MODE) {
-                console.log('Development mode: Also registering to up to 2 guilds for faster testing');
-                const guilds = await client.guilds.fetch();
-                let count = 0;
-                
-                for (const [guildId, guild] of guilds) {
-                    if (count >= 2) break; // Only register to first 2 guilds to avoid rate limits
-                    
-                    try {
-                        console.log(`Registering commands to guild: ${guild.name}`);
-                        await rest.put(
-                            Routes.applicationGuildCommands(client.user.id, guildId),
-                            { body: commands }
-                        );
-                        console.log(`✅ Commands registered to guild: ${guild.name}`);
-                        count++;
-                        
-                        // Add a small delay to avoid rate limiting
-                        await new Promise(resolve => setTimeout(resolve, 5000));
-                    } catch (error) {
-                        console.error(`Error registering commands to guild ${guild.name}:`, error.message);
-                    }
-                }
-            }
-            
-            console.log('✅ Command registration completed');
-        } catch (error) {
-            console.error('Error during command registration:', error.message);
-            console.log('Continuing with bot startup anyway...');
-        }
+        // Code below this point will never be reached due to the return above
+        // ... existing code ...
     } catch (error) {
         console.error('Failed to register commands:', error);
     }

@@ -25,7 +25,7 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ ephemeral: false });
 
         try {
             // Check if raid system is enabled
@@ -33,7 +33,7 @@ module.exports = {
             if (!raidConfig || !raidConfig.enabled) {
                 await interaction.editReply({
                     content: '❌ The raid system is currently disabled in this server.',
-                    ephemeral: true
+                    ephemeral: false
                 });
                 return;
             }
@@ -44,7 +44,7 @@ module.exports = {
             if (!userStreak || userStreak.count < 2) {
                 await interaction.editReply({
                     content: '❌ You need at least 2 streaks to raid.',
-                    ephemeral: true
+                    ephemeral: false
                 });
                 return;
             }
@@ -54,8 +54,8 @@ module.exports = {
             const targetStreak = targetStreaks.find(s => s.trigger === word);
             if (!targetStreak || targetStreak.count < 2) {
                 await interaction.editReply({
-                    content: `${target.username} doesn't have enough streaks to raid.`,
-                    ephemeral: true
+                    content: `❌ ${target} doesn't have enough streaks to raid.`,
+                    ephemeral: false
                 });
                 return;
             }
@@ -70,20 +70,20 @@ module.exports = {
 
             if (result.success) {
                 await interaction.editReply({
-                    content: `🎉 Raid successful! You stole ${result.stealAmount} streaks from ${target.username}!\nYour new streak: ${result.attackerNewCount}`,
-                    ephemeral: true
+                    content: `⚔️ **RAID SUCCESSFUL!** ⚔️\n${interaction.user} raided ${target} and stole ${result.stealAmount} "${word}" streaks!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}`,
+                    ephemeral: false
                 });
             } else {
                 await interaction.editReply({
-                    content: `💀 Raid failed! You lost ${result.riskAmount} streaks.\nYour new streak: ${result.attackerNewCount}`,
-                    ephemeral: true
+                    content: `💀 **RAID FAILED!** 💀\n${interaction.user} tried to raid ${target} but failed and lost ${result.riskAmount} "${word}" streaks!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s streak remains at ${result.defenderNewCount}`,
+                    ephemeral: false
                 });
             }
         } catch (error) {
             console.error('Error in raid command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while processing your raid.',
-                ephemeral: true
+                ephemeral: false
             });
         }
     },
