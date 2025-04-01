@@ -46,8 +46,19 @@ module.exports = {
                     
                     const leaderboardText = leaderboardEntries
                         .map((entry, index) => {
-                            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '•';
-                            return `${medal} ${entry.username}: ${entry.count} streaks`;
+                            // Use medals for top 3, numbers for 4-10
+                            let prefix;
+                            if (index === 0) {
+                                prefix = '🥇';
+                            } else if (index === 1) {
+                                prefix = '🥈';
+                            } else if (index === 2) {
+                                prefix = '🥉';
+                            } else {
+                                // Use numbered placings (4., 5., etc.) for ranks 4-10
+                                prefix = `${index + 1}.`;
+                            }
+                            return `${prefix} ${entry.username}: ${entry.count} streaks`;
                         })
                         .join('\n');
                     embed.addFields({ name: `📝 ${word}`, value: leaderboardText || 'No data yet' });
