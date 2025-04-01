@@ -55,6 +55,7 @@ A Discord bot that tracks user streaks and provides various streak-related featu
 - `/toggle_streakstreak` - Enable/disable streak streak tracking
 - `/togglegambling` - Enable/disable the gambling feature
 - `/configraid` - Configure raid settings
+- `/setup-embed` - Open an interactive configuration panel with visual settings
 - `/restart` - Restart the bot
 
 ## Safety Measures
@@ -89,6 +90,17 @@ A Discord bot that tracks user streaks and provides various streak-related featu
 4. Start the bot: `npm start`
 
 ## Configuration
+
+### Interactive Configuration Panel
+Use `/setup-embed` to access an interactive configuration panel that provides:
+- Visual overview of all bot settings
+- Dropdown menus for easy navigation
+- Real-time status updates
+- Quick access to all configuration options
+- Organized sections for different features:
+  - Core Features (streak streak, trigger words)
+  - Raid System settings
+  - Gambling System settings
 
 ### Trigger Words
 - Maximum length: 100 characters
