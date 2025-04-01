@@ -28027,7 +28027,149 @@ _****_
 
 _****_
 
+Let's also make a more permanent fix to the command registration code to ensure it completes properly:
 
+---
+
+_****_
+
+```diff
+                  
+                  console.log('Starting global command registration with 1-minute timeout...');
++                 try {
+                      await Promise.race([
+                          rest.put(Routes.applicationCommands(client.user.id), { body: commands }),
+                          timeout
+                      ]);
+                      console.log('✅ All commands registered globally');
++                 } catch (raceError) {
++                     console.error('⚠️ Global command registration error:', raceError.message);
++                     
++                     if (raceError.message.includes('timed out')) {
++                         console.log('Trying alternate method with longer timeout...');
++                         
++                         // Try again with a simpler approach and longer timeout
++                         try {
++                             console.log('Making direct API call with 2-minute timeout...');
++                             await new Promise((resolve, reject) => {
++                                 const timeoutId = setTimeout(() => {
++                                     console.log('⚠️ Direct API call timed out, but continuing bot startup...');
++                                     resolve(); // Resolve anyway to continue bot startup
++                                 }, 120000);
++                                 
++                                 rest.put(Routes.applicationCommands(client.user.id), { body: commands })
++                                     .then(() => {
++                                         clearTimeout(timeoutId);
++                                         console.log('✅ Commands registered successfully via direct method');
++                                         resolve();
++                                     })
++                                     .catch(err => {
++                                         clearTimeout(timeoutId);
++                                         console.error('❌ Direct method also failed:', err.message);
++                                         // Still resolve to continue bot startup
++                                         resolve();
++                                     });
++                             });
++                         } catch (directError) {
++                             console.error('Error in direct API call:', directError);
++                             console.log('Continuing with bot startup anyway...');
++                         }
++                     }
++                 }
+              } catch (error) {
+-                 if (error.message.includes('timed out')) {
+-                     console.error('⚠️ Global command registration timed out');
++                 console.error('Error registering global commands:', error.message);
+                  console.log('Continuing with bot startup anyway...');
+-                 } else {
+-                     console.error('Error registering global commands:', error);
+-                 }
+              }
+          }
+```
+
+---
+
+_****_
+
+I've made several changes to help you with the command registration timeout issue:
+
+1. **Added emergency bypass option:**
+   - Added `SKIP_REGISTRATION=true` to your .env file
+   - This will completely skip command registration, allowing your bot to start regardless of registration issues
+   - Use this as a temporary solution until we fix the underlying issue
+
+2. **Improved error handling for global commands:**
+   - If the first registration attempt times out, it will now try an alternate method with a longer timeout
+   - Added a direct API call approach that will resolve after 2 minutes even if it's still in progress
+   - Better error reporting to help diagnose issues
+
+3. **How to use these changes:**
+   - With `SKIP_REGISTRATION=true`, your bot will start up immediately without trying to register commands
+   - This means your commands won't update until you set it back to false, but at least the bot will run
+   - Once the bot is running, you can use the `/fixcommands` command we created earlier to register commands to a specific guild
+
+4. **For future deployments:**
+   - If you want to update commands, set `SKIP_REGISTRATION=false` and `DEV_MODE=false` to use global registration
+   - If command registration is causing problems, you can set `SKIP_REGISTRATION=true` to bypass it 
+   - For development/testing, use `DEV_MODE=true` to register to specific guilds faster
+
+These changes should allow your bot to start reliably even if command registration is slow or times out. The SKIP_REGISTRATION option gives you an emergency bypass when needed.
+
+---
+
+_**User**_
+
+Error executing command fixcommands: TypeError: Cannot read properties of null (reading 'permissions')
+
+    at Object.execute (/app/src/commands/fixcommands.js:11:33)
+
+    at Client.<anonymous> (/app/src/index.js:334:23)
+
+    at InteractionCreateAction.handle (/app/node_modules/discord.js/src/client/actions/InteractionCreate.js:97:12)
+
+    at module.exports [as INTERACTION_CREATE] (/app/node_modules/discord.js/src/client/websocket/handlers/INTERACTION_CREATE.js:4:36)
+
+    at WebSocketManager.handlePacket (/app/node_modules/discord.js/src/client/websocket/WebSocketManager.js:348:31)
+
+    at WebSocketManager.<anonymous> (/app/node_modules/discord.js/src/client/websocket/WebSocketManager.js:232:12)
+
+    at WebSocketManager.emit (/app/node_modules/@vladfrangu/async_event_emitter/dist/index.cjs:287:31)
+
+    at WebSocketShard.<anonymous> (/app/node_modules/@discordjs/ws/dist/index.js:1190:51)
+
+
+
+
+
+
+Error executing command toggledevmode: TypeError: Cannot read properties of null (reading 'permissions')
+
+    at Object.execute (/app/src/commands/toggledevmode.js:13:33)
+
+    at Client.<anonymous> (/app/src/index.js:334:23)
+
+    at Client.emit (node:events:518:28)
+
+    at InteractionCreateAction.handle (/app/node_modules/discord.js/src/client/actions/InteractionCreate.js:97:12)
+
+    at module.exports [as INTERACTION_CREATE] (/app/node_modules/discord.js/src/client/websocket/handlers/INTERACTION_CREATE.js:4:36)
+
+    at WebSocketManager.handlePacket (/app/node_modules/discord.js/src/client/websocket/WebSocketManager.js:348:31)
+
+    at WebSocketManager.<anonymous> (/app/node_modules/discord.js/src/client/websocket/WebSocketManager.js:232:12)
+
+    at WebSocketManager.emit (/app/node_modules/@vladfrangu/async_event_emitter/dist/index.cjs:287:31)
+
+    at WebSocketShard.<anonymous> (/app/node_modules/@discordjs/ws/dist/index.js:1190:51)
+
+    at WebSocketShard.emit (/app/node_modules/@vladfrangu/async_event_emitter/dist/index.cjs:287:31)
+
+---
+
+_**Assistant**_
+
+I see the issue. These commands are failing because they're trying to access `interaction.member.permissions`, but it seems that `interaction.member` is null.
 
 ---
 

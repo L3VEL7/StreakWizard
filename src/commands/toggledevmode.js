@@ -9,14 +9,25 @@ module.exports = {
         .setDescription('Toggle between development and production mode')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
+    guildOnly: true,
+
     async execute(interaction) {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        // Check if this is in a guild
+        if (!interaction.guild) {
+            return await interaction.reply({
+                content: '❌ This command can only be used in a server, not in DMs.',
+                ephemeral: true
+            });
+        }
+        
+        // Check for administrator permissions safely
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
                 ephemeral: true
             });
         }
-
+        
         await interaction.deferReply({ ephemeral: true });
 
         try {

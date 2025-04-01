@@ -331,13 +331,30 @@ client.on('interactionCreate', async interaction => {
     }
 
     try {
+        // Log command execution
+        console.log(`[COMMAND] ${interaction.user.tag} (${interaction.user.id}) used /${interaction.commandName} in ${interaction.guild ? interaction.guild.name : 'DM'}`);
+        
+        // Check if the command requires guild context but is used in DMs
+        if (command.guildOnly && !interaction.guild) {
+            return await interaction.reply({
+                content: '❌ This command can only be used in a server, not in DMs.',
+                ephemeral: true
+            });
+        }
+        
+        // Execute the command
         await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
         
         // Provide more specific error messages based on the error type
         let errorMessage = 'There was an error executing this command!';
-        if (error.name === 'SequelizeConnectionError') {
+        
+        if (error.message && error.message.includes('permissions')) {
+            errorMessage = 'There was a permissions error. Please make sure the bot has the required permissions.';
+        } else if (error.message && error.message.includes('null')) {
+            errorMessage = 'An error occurred accessing command data. Please try again in a server channel.';
+        } else if (error.name === 'SequelizeConnectionError') {
             errorMessage = 'Database connection error. Please try again later.';
         } else if (error.name === 'SequelizeValidationError') {
             errorMessage = 'Invalid data provided. Please check your input.';
