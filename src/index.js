@@ -121,49 +121,74 @@ client.once('ready', async () => {
 
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         
-        // Determine if we're in a production environment (Railway)
-        const isProduction = process.env.RAILWAY_ENVIRONMENT === 'production';
+        // Check if we're in development mode
+        const DEV_MODE = process.env.DEV_MODE === 'true';
         
-        if (isProduction) {
-            // PRODUCTION: Register commands globally for Railway deployment
-            console.log('Registering commands globally (production environment)...');
+        // First clear existing commands
+        if (!DEV_MODE) {
+            // In production mode, clear global commands
+            console.log('Production mode: Clearing global commands...');
+            await rest.put(
+                Routes.applicationCommands(client.user.id),
+                { body: [] }
+            );
+        }
+        
+        // Always clear guild commands to prevent duplicates
+        const guilds = await client.guilds.fetch();
+        for (const [guildId, guild] of guilds) {
             try {
+                console.log(`Clearing commands from guild: ${guild.name}`);
                 await rest.put(
-                    Routes.applicationCommands(client.user.id),
-                    { body: commands }
-                );
-                console.log('Successfully registered global commands');
-            } catch (error) {
-                console.error('Failed to register global commands:', error);
-            }
-        } else {
-            // DEVELOPMENT: Register commands per guild
-            console.log('Development environment detected. Registering commands per guild...');
-            const guilds = await client.guilds.fetch();
-            console.log(`Registering commands in ${guilds.size} guilds...`);
-            
-            for (const [guildId, guild] of guilds) {
-                try {
-                    await rest.put(
-                        Routes.applicationGuildCommands(client.user.id, guildId),
-                        { body: commands },
-                    );
-                    console.log(`Successfully registered commands for guild: ${guild.name}`);
-                } catch (guildError) {
-                    console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
-                }
-            }
-            
-            // Clear any global commands that may have been registered previously
-            try {
-                await rest.put(
-                    Routes.applicationCommands(client.user.id),
+                    Routes.applicationGuildCommands(client.user.id, guildId),
                     { body: [] }
                 );
-                console.log('Successfully cleared global commands');
-            } catch (globalError) {
-                console.error('Failed to clear global commands:', globalError);
+            } catch (error) {
+                console.error(`Error clearing commands from ${guild.name}:`, error);
             }
+        }
+        
+        if (DEV_MODE) {
+            // In development mode, register commands per guild for faster updates
+            console.log('Development mode: Registering guild-specific commands...');
+            const testGuild = process.env.TEST_GUILD_ID;
+            
+            if (testGuild) {
+                // If a test guild is specified, only register there
+                console.log(`Registering commands to test guild: ${testGuild}`);
+                try {
+                    await rest.put(
+                        Routes.applicationGuildCommands(client.user.id, testGuild),
+                        { body: commands }
+                    );
+                    console.log('✅ Successfully registered guild commands to test guild');
+                } catch (error) {
+                    console.error('Failed to register commands to test guild:', error);
+                }
+            } else {
+                // Otherwise register to all guilds
+                console.log(`Registering commands to ${guilds.size} guilds...`);
+                for (const [guildId, guild] of guilds) {
+                    try {
+                        await rest.put(
+                            Routes.applicationGuildCommands(client.user.id, guildId),
+                            { body: commands }
+                        );
+                        console.log(`Registered commands to guild: ${guild.name}`);
+                    } catch (error) {
+                        console.error(`Failed to register commands to guild ${guild.name}:`, error);
+                    }
+                }
+                console.log('✅ Successfully registered commands to all guilds');
+            }
+        } else {
+            // In production mode, register commands globally
+            console.log('Production mode: Registering global commands...');
+            await rest.put(
+                Routes.applicationCommands(client.user.id),
+                { body: commands }
+            );
+            console.log('✅ Successfully registered global commands');
         }
     } catch (error) {
         console.error('Failed to register commands:', error);

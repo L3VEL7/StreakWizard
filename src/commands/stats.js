@@ -29,7 +29,7 @@ module.exports = {
                 if (stats) {
                     embed.addFields({
                         name: `📝 ${word}`,
-                        value: `Total Streaks: ${stats.totalStreaks}\nActive Users: ${stats.activeUsers}\nAverage Streak: ${stats.averageStreak.toFixed(1)}`
+                        value: `Total Streaks: ${stats.total}\nActive Users: ${stats.users}\nAverage Streak: ${stats.average.toFixed(1)}`
                     });
                 }
             }

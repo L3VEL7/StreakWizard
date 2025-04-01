@@ -78,12 +78,12 @@ module.exports = {
             // Display the gamble result to the user
             if (result.won) {
                 await interaction.editReply({
-                    content: `🎉 Congratulations! You won ${result.wonAmount} streaks!\nYour new streak for "${word}" is ${result.newStreak}!`,
+                    content: `🎉 Congratulations! You won ${result.gambleAmount} streaks!\nYour new streak for "${word}" is ${result.newCount}!`,
                     ephemeral: true
                 });
             } else {
                 await interaction.editReply({
-                    content: `😢 Sorry, you lost ${amount} streaks.\nYour new streak for "${word}" is ${result.newStreak}.`,
+                    content: `😢 Sorry, you lost ${amount} streaks.\nYour new streak for "${word}" is ${result.newCount}.`,
                     ephemeral: true
                 });
             }

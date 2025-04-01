@@ -5,13 +5,16 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/database/init.js && node src/index.js",
-    "dev": "nodemon src/index.js",
+    "dev": "DEV_MODE=true nodemon src/index.js",
+    "dev:windows": "set DEV_MODE=true&& nodemon src/index.js",
     "test": "jest",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
     "migrate": "node src/database/migrate.js",
-    "railway:start": "RAILWAY_ENVIRONMENT=production node src/index.js"
+    "railway:start": "node src/index.js",
+    "reset-commands": "node reset-commands.js",
+    "register-dev": "node register-dev-commands.js"
   },
   "keywords": ["discord", "bot", "streak", "tracking"],
   "author": "",
