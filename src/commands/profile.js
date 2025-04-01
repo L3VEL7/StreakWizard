@@ -30,13 +30,40 @@ module.exports = {
                 .setTitle(`${targetUser.username}'s Streak Profile`)
                 .setThumbnail(targetUser.displayAvatarURL());
 
+            // Get all user streaks at once
+            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, targetUser.id);
+            
+            // Create a map for easy lookup
+            const streaksMap = {};
+            userStreaks.forEach(streak => {
+                streaksMap[streak.trigger] = streak;
+            });
+
+            // Create profile fields for each trigger word
             for (const word of triggerWords) {
-                const streak = await streakManager.getStreak(interaction.guildId, targetUser.id, word);
-                const streakStreak = await streakManager.getStreakStreak(interaction.guildId, targetUser.id, word);
+                const userStreak = streaksMap[word];
+                const count = userStreak ? userStreak.count : 0;
                 
-                let streakInfo = `Current Streak: ${streak || 0}`;
-                if (streakStreak > 1) {
-                    streakInfo += `\nStreak Streak: ${streakStreak} days`;
+                let streakInfo = `Current Streak: ${count}`;
+                
+                // Check if the streak record has streakStreak information
+                // We'll need to query the database directly since getUserStreaks doesn't return this
+                try {
+                    // We need to use findOne directly to get the streakStreak information
+                    const { Streak } = require('../database/models');
+                    const streakRecord = await Streak.findOne({
+                        where: {
+                            guildId: interaction.guildId,
+                            userId: targetUser.id,
+                            triggerWord: word
+                        }
+                    });
+                    
+                    if (streakRecord && streakRecord.streakStreak > 1) {
+                        streakInfo += `\nStreak Streak: ${streakRecord.streakStreak} days`;
+                    }
+                } catch (err) {
+                    console.error('Error fetching streak streak:', err);
                 }
                 
                 embed.addFields({ name: `📝 ${word}`, value: streakInfo });
