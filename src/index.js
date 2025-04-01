@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, InteractionResponseFlags } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, PermissionFlagsBits } = require('discord.js');
 const { config } = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -131,6 +131,13 @@ client.on('interactionCreate', async interaction => {
     }
 
     try {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return await interaction.reply({
+                content: '❌ You need administrator permissions to use this command.',
+                ephemeral: true
+            });
+        }
+
         await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
@@ -151,12 +158,12 @@ client.on('interactionCreate', async interaction => {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({
                     content: errorMessage,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } else {
                 await interaction.reply({
                     content: errorMessage,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         } catch (replyError) {

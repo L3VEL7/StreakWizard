@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 let pendingChanges = {
@@ -19,12 +19,12 @@ module.exports = {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return await interaction.reply({
                     content: '❌ You need administrator permissions to use this command.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
             // Defer reply since this might take a moment
-            await interaction.deferReply();
+            await interaction.deferReply({ ephemeral: true });
 
             // Get current configurations
             const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
@@ -76,7 +76,8 @@ module.exports = {
             // Send the initial embed and dropdown
             const message = await interaction.editReply({
                 embeds: [embed],
-                components: [row]
+                components: [row],
+                ephemeral: true
             });
 
             // Create a collector for the dropdown
@@ -151,7 +152,8 @@ module.exports = {
 
                     await i.update({
                         embeds: [embed],
-                        components: [row]
+                        components: [row],
+                        ephemeral: true
                     });
                 }
 
@@ -181,7 +183,8 @@ module.exports = {
 
                         await i.update({
                             embeds: [successEmbed],
-                            components: []
+                            components: [],
+                            ephemeral: true
                         });
 
                         // Return to main menu after 2 seconds
@@ -232,7 +235,8 @@ module.exports = {
 
                             await interaction.editReply({
                                 embeds: [mainEmbed],
-                                components: [row]
+                                components: [row],
+                                ephemeral: true
                             });
                         }, 2000);
                     } catch (error) {
@@ -240,7 +244,8 @@ module.exports = {
                         await i.update({
                             content: '❌ An error occurred while saving changes.',
                             embeds: [],
-                            components: []
+                            components: [],
+                            ephemeral: true
                         });
                     }
                 }
@@ -285,7 +290,8 @@ module.exports = {
                 row.components[0].setDisabled(true);
                 interaction.editReply({
                     embeds: [embed],
-                    components: [row]
+                    components: [row],
+                    ephemeral: true
                 }).catch(console.error);
             });
 
@@ -296,12 +302,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         }
@@ -360,7 +366,8 @@ async function handleCoreConfig(interaction, streakStreakEnabled, triggerWords) 
 
     await interaction.update({
         embeds: [embed],
-        components: [row1, row2]
+        components: [row1, row2],
+        ephemeral: true
     });
 }
 
@@ -417,7 +424,8 @@ async function handleRaidConfig(interaction, raidConfig) {
 
     await interaction.update({
         embeds: [embed],
-        components: [row1, row2]
+        components: [row1, row2],
+        ephemeral: true
     });
 }
 
@@ -473,7 +481,8 @@ async function handleGamblingConfig(interaction, gamblingConfig) {
 
     await interaction.update({
         embeds: [embed],
-        components: [row1, row2]
+        components: [row1, row2],
+        ephemeral: true
     });
 }
 
@@ -504,7 +513,8 @@ async function handleSaveChanges(interaction, section) {
 
     await interaction.update({
         embeds: [embed],
-        components: [row]
+        components: [row],
+        ephemeral: true
     });
 }
 
@@ -560,6 +570,7 @@ async function handleHelp(interaction, section) {
 
     await interaction.update({
         embeds: [helpEmbed],
-        components: [row]
+        components: [row],
+        ephemeral: true
     });
 } 

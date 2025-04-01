@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -17,12 +17,12 @@ module.exports = {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return await interaction.reply({
                     content: '❌ You need administrator permissions to use this command.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
             // Defer reply since this might take a moment
-            await interaction.deferReply();
+            await interaction.deferReply({ ephemeral: true });
 
             const enabled = interaction.options.getBoolean('enabled');
 
@@ -39,7 +39,7 @@ module.exports = {
 
                 await interaction.editReply({
                     content: warningMessage,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
 
                 // Wait for confirmation
@@ -63,13 +63,13 @@ module.exports = {
                     } else {
                         await interaction.editReply({
                             content: '❌ Operation cancelled.',
-                            flags: [InteractionResponseFlags.Ephemeral]
+                            ephemeral: true
                         });
                     }
                 } catch (error) {
                     await interaction.editReply({
                         content: '❌ No confirmation received. Operation cancelled.',
-                        flags: [InteractionResponseFlags.Ephemeral]
+                        ephemeral: true
                     });
                 }
             } else {
@@ -91,12 +91,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         }

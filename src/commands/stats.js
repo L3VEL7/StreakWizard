@@ -1,64 +1,39 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('stats')
-        .setDescription('View your streak statistics')
-        .addUserOption(option =>
-            option.setName('user')
-                .setDescription('The user to view stats for (defaults to yourself)')
-                .setRequired(false)),
+        .setDescription('View your streak statistics'),
 
     async execute(interaction) {
+        await interaction.deferReply({ ephemeral: true });
+        
+        const userId = interaction.user.id;
+        const guildId = interaction.guildId;
+
         try {
-            // Defer reply since this might take a moment
-            await interaction.deferReply();
-
-            const targetUser = interaction.options.getUser('user') || interaction.user;
-
-            // Get user's streaks
-            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, targetUser.id);
-
-            if (!userStreaks || userStreaks.length === 0) {
-                return await interaction.editReply({
-                    content: `${targetUser} has no streaks yet.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            }
-
-            // Calculate total streaks and streak streak
+            const userStreaks = await streakManager.getUserStreaks(guildId, userId);
             const totalStreaks = userStreaks.reduce((sum, streak) => sum + streak.count, 0);
-            const streakStreak = userStreaks.reduce((sum, streak) => sum + (streak.streakStreak || 0), 0);
+            const streakStreak = await streakManager.getStreakStreak(guildId, userId);
 
-            // Create response message
-            let message = `📊 **Streak Statistics for ${targetUser}**\n\n`;
-            message += `**Total Streaks:** ${totalStreaks}\n`;
-            message += `**Streak Streak:** ${streakStreak}\n\n`;
-            message += `**Individual Streaks:**\n`;
+            const embed = new EmbedBuilder()
+                .setColor('#00FF00')
+                .setTitle('📊 Your Streak Statistics')
+                .setDescription(`Total Streaks: ${totalStreaks}`)
+                .addFields(
+                    { name: 'Current Streak Streak', value: `${streakStreak || 0} days`, inline: true },
+                    { name: 'Active Streaks', value: `${userStreaks.length} different words`, inline: true }
+                )
+                .setTimestamp();
 
-            // Add individual streak information
-            for (const streak of userStreaks) {
-                message += `• "${streak.trigger}": ${streak.count} (Streak: ${streak.streakStreak || 0})\n`;
-            }
-
-            await interaction.editReply(message);
-
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
-            console.error('Error in stats command:', error);
-            const errorMessage = error.message || 'An error occurred while fetching stats.';
-            
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            }
+            console.error('Error fetching user stats:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while fetching your statistics.',
+                ephemeral: true
+            });
         }
-    }
+    },
 }; 

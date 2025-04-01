@@ -1,64 +1,53 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')
-        .setDescription('Shows bot commands and usage'),
+        .setDescription('Show information about available commands'),
 
     async execute(interaction) {
-        const embed = new EmbedBuilder()
-            .setColor('#0099ff')
-            .setTitle('🔥 Streak Bot Help')
-            .addFields(
-                {
-                    name: 'Admin Commands',
-                    value: [
-                        '`/setup` - Configure trigger words',
-                        '`/setstreak_limit` - Set time between streak updates',
-                        '`/remove` - Remove trigger words',
-                        '`/reset` - Reset streaks for users or trigger words',
-                        '`/toggle_streakstreak` - Enable/disable streak streak feature',
-                        '`/restart` - Restart the bot',
-                        '`/refresh` - Refresh command cache',
-                        '`/reload` - Force reload all commands',
-                        '',
-                        'Usage examples:',
-                        '• `/setup words:word1,word2,word3`',
-                        '• `/setstreak_limit interval:[hourly/daily/none]`',
-                        '• `/remove words:word1,word2,word3`',
-                        '• `/reset user:@user` or `/reset trigger:word`',
-                        '• `/toggle_streakstreak`',
-                        '• `/restart`',
-                        '• `/refresh`',
-                        '• `/reload`'
-                    ].join('\n')
-                },
-                {
-                    name: 'User Commands',
-                    value: [
-                        '`/profile` - View your or another user\'s streak profile',
-                        '`/leaderboard` - View streak leaderboard for a specific word',
-                        '`/stats` - View server-wide streak statistics',
-                        '',
-                        'Usage examples:',
-                        '• `/profile [@user]`',
-                        '• `/leaderboard word:trigger_word`',
-                        '• `/stats`'
-                    ].join('\n')
-                },
-                {
-                    name: 'General',
-                    value: [
-                        '`/help` - Show this help message',
-                        'Usage: `/help`'
-                    ].join('\n')
-                }
-            )
-            .setFooter({ text: 'Start tracking your streaks today!' });
+        await interaction.deferReply({ ephemeral: true });
 
-        await interaction.reply({
-            embeds: [embed],
-            flags: [InteractionResponseFlags.Ephemeral]
-        });
-    }
-}
+        try {
+            const embed = new EmbedBuilder()
+                .setColor('#0099ff')
+                .setTitle('📚 Bot Commands')
+                .setDescription('Here are all the available commands:')
+                .addFields(
+                    { name: '🎯 Core Commands', value: 
+                        '`/profile` - View your streak profile\n' +
+                        '`/stats` - View your streak statistics\n' +
+                        '`/leaderboard` - View the server\'s streak leaderboard'
+                    },
+                    { name: '⚔️ Raid System', value: 
+                        '`/raid` - Attempt to steal streaks from another user\n' +
+                        '`/configraid` - Configure raid settings (Admin only)'
+                    },
+                    { name: '🎲 Gambling System', value: 
+                        '`/gamble` - Gamble your streaks for a chance to win more\n' +
+                        '`/togglegambling` - Enable/disable gambling (Admin only)'
+                    },
+                    { name: '⚙️ Admin Commands', value: 
+                        '`/setup` - Add a new trigger word\n' +
+                        '`/setup-embed` - Open the interactive configuration panel\n' +
+                        '`/reset` - Reset a user\'s streaks\n' +
+                        '`/restart` - Restart the bot\n' +
+                        '`/toggle_streakstreak` - Enable/disable streak streak tracking'
+                    }
+                )
+                .setFooter({ text: 'Use /help <command> for more details about a specific command' })
+                .setTimestamp();
+
+            await interaction.editReply({
+                embeds: [embed],
+                ephemeral: true
+            });
+        } catch (error) {
+            console.error('Error showing help:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while showing the help menu.',
+                ephemeral: true
+            });
+        }
+    },
+};

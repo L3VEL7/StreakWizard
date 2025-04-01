@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -11,7 +11,7 @@ module.exports = {
                 .setRequired(false)),
 
     async execute(interaction) {
-        await interaction.deferReply();
+        await interaction.deferReply({ ephemeral: true });
         
         const targetUser = interaction.options.getUser('user') || interaction.user;
         const guildId = interaction.guildId;
@@ -22,7 +22,7 @@ module.exports = {
             if (!userStreaks || userStreaks.length === 0) {
                 return await interaction.editReply({
                     content: `${targetUser.username} hasn't earned any streaks yet!`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
@@ -41,12 +41,12 @@ module.exports = {
                 .setFooter({ text: `Member since ${targetUser.createdAt.toLocaleDateString()}` })
                 .setTimestamp();
 
-            await interaction.editReply({ embeds: [embed] });
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
             console.error('Error fetching user profile:', error);
-            await interaction.reply({
+            await interaction.editReply({
                 content: '❌ An error occurred while fetching your profile.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                ephemeral: true
             });
         }
     },

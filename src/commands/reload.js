@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,13 +10,13 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+            await interaction.deferReply({ ephemeral: true });
 
             // Check if the user has administrator permissions
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 await interaction.editReply({
                     content: '❌ You need administrator permissions to use this command.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
                 return;
             }
@@ -65,13 +65,13 @@ module.exports = {
                 await interaction.client.application.commands.set(commands);
                 await interaction.editReply({
                     content: '✅ Commands reloaded successfully! The new commands should appear shortly.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } catch (error) {
                 console.error('Error registering reloaded commands:', error);
                 await interaction.editReply({
                     content: '❌ Failed to register reloaded commands. Please try using `/restart` instead.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         } catch (error) {
@@ -79,7 +79,7 @@ module.exports = {
             try {
                 await interaction.editReply({
                     content: `❌ Error reloading command: ${error.message}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } catch (replyError) {
                 console.error('Failed to send error message:', replyError);

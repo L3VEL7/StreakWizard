@@ -1,79 +1,53 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('refresh')
-        .setDescription('Refresh the bot\'s command cache (Admin only)')
+        .setDescription('Refreshes all commands')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
         try {
-            await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+            await interaction.deferReply({ ephemeral: true });
 
-            // Check if the user has administrator permissions
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                await interaction.editReply({
-                    content: '❌ You need administrator permissions to use this command.',
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-                return;
-            }
+            const commands = interaction.client.commands;
+            let reloadedCount = 0;
 
-            // Clear the command cache
-            interaction.client.commands.clear();
+            for (const [name, command] of commands) {
+                delete require.cache[require.resolve(`./${name}.js`)];
 
-            // Reload all commands
-            const fs = require('fs');
-            const path = require('path');
-            const commandsPath = path.join(__dirname);
-            const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
-            for (const file of commandFiles) {
                 try {
-                    const filePath = path.join(commandsPath, file);
-                    const command = require(filePath);
-
-                    if (!command.data || !command.data.name || !command.execute) {
-                        console.warn(`[WARNING] The command at ${file} is missing required properties. Skipping.`);
-                        continue;
-                    }
-
-                    interaction.client.commands.set(command.data.name, command);
-                    console.log(`Reloaded command: ${command.data.name}`);
+                    interaction.client.commands.delete(name);
+                    const newCommand = require(`./${name}.js`);
+                    interaction.client.commands.set(name, newCommand);
+                    reloadedCount++;
                 } catch (error) {
-                    console.error(`[ERROR] Failed to reload command ${file}:`, error);
+                    console.error(`Error reloading command ${name}:`, error);
+                    await interaction.editReply({
+                        content: `❌ There was an error while reloading command \`${name}\`:\n\`${error.message}\``,
+                        ephemeral: true
+                    });
+                    return;
                 }
             }
 
-            // Register the refreshed commands
-            const commands = [];
-            for (const command of interaction.client.commands.values()) {
-                commands.push(command.data.toJSON());
-            }
-
-            try {
-                await interaction.client.application.commands.set(commands);
-                await interaction.editReply({
-                    content: '✅ Command cache refreshed successfully!',
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            } catch (error) {
-                console.error('Error registering refreshed commands:', error);
-                await interaction.editReply({
-                    content: `❌ Error refreshing commands: ${error.message}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            }
+            await interaction.editReply({
+                content: `✅ Successfully reloaded ${reloadedCount} command(s)!`,
+                ephemeral: true
+            });
         } catch (error) {
             console.error('Error in refresh command:', error);
-            try {
+            if (interaction.deferred) {
                 await interaction.editReply({
-                    content: '❌ An error occurred while refreshing commands.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    content: `❌ An error occurred while refreshing commands: ${error.message}`,
+                    ephemeral: true
                 });
-            } catch (replyError) {
-                console.error('Failed to send error message:', replyError);
+            } else {
+                await interaction.reply({
+                    content: `❌ An error occurred while refreshing commands: ${error.message}`,
+                    ephemeral: true
+                });
             }
         }
-    }
+    },
 }; 

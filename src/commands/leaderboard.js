@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -14,7 +14,7 @@ module.exports = {
     async execute(interaction) {
         try {
             // Defer the reply since this might take a moment
-            await interaction.deferReply();
+            await interaction.deferReply({ ephemeral: true });
 
             const word = interaction.options.getString('word').toLowerCase();
             const guildId = interaction.guildId;
@@ -22,7 +22,7 @@ module.exports = {
             if (!streakManager.isValidTriggerWord(guildId, word)) {
                 return interaction.editReply({
                     content: 'Invalid trigger word. Use /setup to configure valid trigger words.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
@@ -55,7 +55,7 @@ module.exports = {
                 embed.addFields({ name: 'Rankings', value: leaderboardText });
             }
 
-            await interaction.editReply({ embeds: [embed] });
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
             console.error('Error in leaderboard command:', error);
             const errorMessage = interaction.replied || interaction.deferred
@@ -65,12 +65,12 @@ module.exports = {
             if (interaction.replied || interaction.deferred) {
                 await interaction.editReply({
                     content: errorMessage,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } else {
                 await interaction.reply({
                     content: '❌ An error occurred while fetching the leaderboard.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         }

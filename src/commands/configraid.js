@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 // Rate limiting map
@@ -44,7 +44,7 @@ module.exports = {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return await interaction.reply({
                     content: '❌ You need administrator permissions to use this command.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
@@ -57,12 +57,12 @@ module.exports = {
                 const remainingTime = Math.ceil((cooldownPeriod - (now - lastChange)) / 1000 / 60);
                 return await interaction.reply({
                     content: `❌ Please wait ${remainingTime} minute${remainingTime !== 1 ? 's' : ''} before changing raid configuration again.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
             // Defer reply since this might take a moment
-            await interaction.deferReply();
+            await interaction.deferReply({ ephemeral: true });
 
             // Get current raid configuration
             const currentConfig = await streakManager.getRaidConfig(interaction.guildId);
@@ -99,17 +99,24 @@ module.exports = {
             // Update rate limit timestamp
             configChangeCooldowns.set(interaction.guildId, now);
 
-            // Create response message with emojis for better visibility
-            const status = newConfig.enabled ? '✅ Enabled' : '❌ Disabled';
-            const message = `**⚔️ Raid Configuration Updated ⚔️**\n\n` +
-                `**Status:** ${status}\n` +
-                `**Max Steal:** ${newConfig.maxStealPercent}% 💰\n` +
-                `**Risk:** ${newConfig.riskPercent}% ⚠️\n` +
-                `**Success Chance:** ${newConfig.successChance}% 🎯\n` +
-                `**Cooldown:** ${newConfig.cooldownHours} hours ⏰\n\n` +
-                `**Note:** Users need at least 2 streaks to raid.`;
+            // Create response embed
+            const embed = new EmbedBuilder()
+                .setColor('#00FF00')
+                .setTitle('⚔️ Raid Configuration Updated')
+                .setDescription('The following settings have been updated:')
+                .addFields(
+                    Object.entries(newConfig).map(([key, value]) => ({
+                        name: key.charAt(0).toUpperCase() + key.slice(1),
+                        value: typeof value === 'boolean' ? (value ? '✅ Enabled' : '❌ Disabled') : value.toString(),
+                        inline: true
+                    }))
+                )
+                .setTimestamp();
 
-            await interaction.editReply(message);
+            await interaction.editReply({
+                embeds: [embed],
+                ephemeral: true
+            });
 
         } catch (error) {
             console.error('Error in configraid command:', error);
@@ -118,12 +125,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         }

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -31,12 +31,12 @@ module.exports = {
             if (!gamblingEnabled) {
                 return await interaction.reply({
                     content: '❌ Gambling feature is not enabled in this server. Ask an administrator to enable it.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
             // Defer reply since this might take a moment
-            await interaction.deferReply();
+            await interaction.deferReply({ ephemeral: true });
 
             const word = interaction.options.getString('word').trim().toLowerCase();
             const percentage = interaction.options.getInteger('percentage');
@@ -46,7 +46,7 @@ module.exports = {
             if (!word || word.trim().length === 0) {
                 return await interaction.editReply({
                     content: '❌ Please provide a valid trigger word.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
@@ -54,7 +54,7 @@ module.exports = {
             if (!await streakManager.isValidTriggerWord(interaction.guildId, word)) {
                 return await interaction.editReply({
                     content: '❌ Invalid trigger word. Please use a word that is set up for streaks in this server.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
@@ -65,7 +65,7 @@ module.exports = {
             if (!userStreak || userStreak.count < 2) {
                 return await interaction.editReply({
                     content: '❌ You need at least 2 streaks to gamble.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
 
@@ -98,12 +98,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    ephemeral: true
                 });
             }
         }

@@ -1,62 +1,58 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('togglegambling')
-        .setDescription('Enable or disable the gambling feature')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addBooleanOption(option =>
-            option.setName('enabled')
-                .setDescription('Whether to enable or disable gambling')
-                .setRequired(true)),
+        .setDescription('Enable or disable the gambling system')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
-        try {
-            // Check if user has administrator permissions
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                await interaction.reply({
-                    content: '❌ You need administrator permissions to use this command.',
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            }
-
-            // Defer reply since this might take a moment
-            await interaction.deferReply();
-
-            const enabled = interaction.options.getBoolean('enabled');
-
-            // Update gambling status
-            await streakManager.setGamblingEnabled(interaction.guildId, enabled);
-
-            // Get current gambling config
-            const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
-
-            // Create response message
-            const status = enabled ? 'enabled' : 'disabled';
-            const message = `✅ Gambling feature has been ${status}.\n\n` +
-                `Current gambling settings:\n` +
-                `• Success chance: ${gamblingConfig.successChance}%\n` +
-                `• Minimum streak requirement: ${gamblingConfig.minStreaks}\n` +
-                `• Maximum gamble percentage: ${gamblingConfig.maxGamblePercent}%`;
-
-            await interaction.editReply(message);
-
-        } catch (error) {
-            console.error('Error in togglegambling command:', error);
-            const errorMessage = error.message || 'An error occurred while toggling gambling.';
-            
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    flags: [InteractionResponseFlags.Ephemeral]
-                });
-            }
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return await interaction.reply({
+                content: '❌ You need administrator permissions to use this command.',
+                ephemeral: true
+            });
         }
-    }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            const currentConfig = await streakManager.getGamblingConfig(interaction.guildId);
+            const newStatus = !currentConfig.enabled;
+
+            await streakManager.updateGamblingConfig(interaction.guildId, {
+                enabled: newStatus,
+                successChance: currentConfig.successChance,
+                maxGamblePercent: currentConfig.maxGamblePercent,
+                minStreaks: currentConfig.minStreaks
+            });
+
+            const status = newStatus ? 'enabled' : 'disabled';
+            const embed = new EmbedBuilder()
+                .setColor(newStatus ? '#00FF00' : '#FF0000')
+                .setTitle('🎲 Gambling System Configuration')
+                .setDescription(`Gambling system has been ${status}.`)
+                .addFields(
+                    { name: 'Current Settings', value: 
+                        `• Status: ${newStatus ? '✅ Enabled' : '❌ Disabled'}\n` +
+                        `• Success Chance: ${currentConfig.successChance}%\n` +
+                        `• Max Gamble: ${currentConfig.maxGamblePercent}%\n` +
+                        `• Min Streaks: ${currentConfig.minStreaks}`
+                    }
+                )
+                .setTimestamp();
+
+            await interaction.editReply({
+                embeds: [embed],
+                ephemeral: true
+            });
+        } catch (error) {
+            console.error('Error toggling gambling:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while toggling the gambling system.',
+                ephemeral: true
+            });
+        }
+    },
 }; 
