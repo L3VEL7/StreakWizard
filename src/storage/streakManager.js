@@ -1,6 +1,6 @@
 const { GuildConfig, Streak } = require('../database/models');
 const { Op } = require('sequelize');
-const sequelize = require('sequelize');
+const { sequelize } = require('../database/models');
 
 // Define milestone levels
 const MILESTONES = [
@@ -167,28 +167,167 @@ module.exports = {
         return config ? config.streakStreakEnabled : true; // Default to true if not set
     },
 
-    async incrementStreak(guildId, userId, word) {
-        const processedWord = word.trim().toLowerCase();
+    async isGamblingEnabled(guildId) {
+        const config = await GuildConfig.findByPk(guildId);
+        return config ? config.gamblingEnabled : false; // Default to false if not set
+    },
 
-        if (!await this.canUpdateStreak(guildId, userId, processedWord)) {
-            return -1;
-        }
+    async setGamblingEnabled(guildId, enabled) {
+        await GuildConfig.upsert({
+            guildId,
+            gamblingEnabled: enabled
+        });
+    },
 
-        const [streak, created] = await Streak.findOrCreate({
+    async isRaidEnabled(guildId) {
+        const config = await GuildConfig.findByPk(guildId);
+        return config ? config.raidEnabled : false; // Default to false if not set
+    },
+
+    async setRaidEnabled(guildId, enabled) {
+        await GuildConfig.upsert({
+            guildId,
+            raidEnabled: enabled
+        });
+    },
+
+    async getRaidConfig(guildId) {
+        const config = await GuildConfig.findByPk(guildId);
+        return {
+            enabled: config ? config.raidEnabled : false,
+            maxStealPercent: config ? config.raidMaxStealPercent : 20,
+            riskPercent: config ? config.raidRiskPercent : 30,
+            successChance: config ? config.raidSuccessChance : 40,
+            cooldownHours: config ? config.raidCooldownHours : 24 // Default 24 hour cooldown
+        };
+    },
+
+    async setRaidConfig(guildId, config) {
+        await GuildConfig.upsert({
+            guildId,
+            raidEnabled: config.enabled,
+            raidMaxStealPercent: config.maxStealPercent,
+            raidRiskPercent: config.riskPercent,
+            raidSuccessChance: config.successChance,
+            raidCooldownHours: config.cooldownHours
+        });
+    },
+
+    async canRaid(guildId, userId) {
+        const config = await this.getRaidConfig(guildId);
+        if (!config.enabled) return false;
+
+        const lastRaid = await Streak.findOne({
             where: {
                 guildId,
                 userId,
-                triggerWord: processedWord
-            },
-            defaults: {
-                count: 1,
-                streakStreak: 1,
-                lastStreakDate: new Date().toISOString().split('T')[0],
-                lastUpdated: new Date()
+                lastRaidDate: {
+                    [Op.not]: null
+                }
             }
         });
 
-        if (!created) {
+        if (!lastRaid) return true;
+
+        const now = new Date();
+        const hoursSinceLastRaid = (now - lastRaid.lastRaidDate) / (1000 * 60 * 60);
+        return hoursSinceLastRaid >= config.cooldownHours;
+    },
+
+    async gambleStreak(guildId, userId, word, percentage, choice) {
+        // Start a transaction with SERIALIZABLE isolation level
+        const transaction = await sequelize.transaction({
+            isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+        });
+
+        try {
+            // Validate percentage (1-100)
+            if (percentage < 1 || percentage > 100) {
+                throw new Error('Percentage must be between 1 and 100');
+            }
+
+            // Get current streak with lock
+            const streak = await Streak.findOne({
+                where: {
+                    guildId,
+                    userId,
+                    triggerWord: word.trim().toLowerCase()
+                },
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!streak) {
+                throw new Error('No streak found for this word');
+            }
+
+            // Calculate gamble amount
+            const gambleAmount = Math.floor(streak.count * (percentage / 100));
+            if (gambleAmount < 1) {
+                throw new Error('Gamble amount must be at least 1 streak');
+            }
+
+            // Perform coin flip
+            const result = Math.random() < 0.5 ? 'heads' : 'tails';
+            const won = result === choice;
+
+            // Update streak
+            if (won) {
+                streak.count += gambleAmount;
+            } else {
+                streak.count -= gambleAmount;
+                if (streak.count < 1) streak.count = 1; // Prevent negative streaks
+            }
+
+            await streak.save({ transaction });
+
+            // Commit the transaction
+            await transaction.commit();
+
+            return {
+                won,
+                result,
+                newCount: streak.count,
+                gambleAmount
+            };
+        } catch (error) {
+            // Rollback the transaction on error
+            await transaction.rollback();
+            throw error;
+        }
+    },
+
+    async incrementStreak(guildId, userId, word) {
+        try {
+            const processedWord = word.trim().toLowerCase();
+
+            // Check if streak can be updated
+            if (!await this.canUpdateStreak(guildId, userId, processedWord)) {
+                return -1;
+            }
+
+            // Get or create streak with a single database operation
+            const [streak, created] = await Streak.findOrCreate({
+                where: {
+                    guildId,
+                    userId,
+                    triggerWord: processedWord
+                },
+                defaults: {
+                    count: 1,
+                    streakStreak: 1,
+                    lastStreakDate: new Date().toISOString().split('T')[0],
+                    lastUpdated: new Date()
+                }
+            });
+
+            if (created) {
+                return { 
+                    count: streak.count,
+                    streakStreak: streak.streakStreak
+                };
+            }
+
+            // Update existing streak
             const oldCount = streak.count;
             const today = new Date().toISOString().split('T')[0];
             
@@ -200,10 +339,8 @@ module.exports = {
                     const daysDiff = Math.floor((currentDate - lastDate) / (1000 * 60 * 60 * 24));
                     
                     if (daysDiff === 1) {
-                        // Consecutive day
                         streak.streakStreak += 1;
                     } else if (daysDiff > 1) {
-                        // Streak broken
                         streak.streakStreak = 1;
                     }
                 } else {
@@ -216,13 +353,14 @@ module.exports = {
             streak.lastUpdated = new Date();
             await streak.save();
 
-            // Check for milestone achievement
-            const milestone = MILESTONES.find(m => m.level === streak.count);
+            // Prepare result object
             const result = {
                 count: streak.count,
                 streakStreak: streak.streakStreak
             };
 
+            // Check for milestone achievement
+            const milestone = MILESTONES.find(m => m.level === streak.count);
             if (milestone) {
                 result.milestone = {
                     level: milestone.level,
@@ -242,12 +380,10 @@ module.exports = {
             }
 
             return result;
+        } catch (error) {
+            console.error('Error in incrementStreak:', error);
+            throw new Error('Failed to update streak');
         }
-
-        return { 
-            count: streak.count,
-            streakStreak: streak.streakStreak
-        };
     },
 
     async getStreaks(guildId, word = null) {
@@ -356,5 +492,162 @@ module.exports = {
         const hours = Math.floor(remainingMinutes / 60);
         const minutes = Math.floor(remainingMinutes % 60);
         return { hours, minutes };
+    },
+
+    async raidStreak(guildId, attackerId, defenderId, word) {
+        // Start a transaction with SERIALIZABLE isolation level
+        const transaction = await sequelize.transaction({
+            isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+        });
+
+        try {
+            // Get raid configuration
+            const raidConfig = await this.getRaidConfig(guildId);
+            if (!raidConfig.enabled) {
+                throw new Error('Raid feature is not enabled in this server');
+            }
+
+            // Check cooldown
+            if (!await this.canRaid(guildId, attackerId)) {
+                const lastRaid = await Streak.findOne({
+                    where: {
+                        guildId,
+                        userId: attackerId,
+                        lastRaidDate: {
+                            [Op.not]: null
+                        }
+                    }
+                });
+                const now = new Date();
+                const hoursSinceLastRaid = (now - lastRaid.lastRaidDate) / (1000 * 60 * 60);
+                const remainingHours = Math.ceil(raidConfig.cooldownHours - hoursSinceLastRaid);
+                throw new Error(`You must wait ${remainingHours} more hour${remainingHours !== 1 ? 's' : ''} before raiding again`);
+            }
+
+            // Anti-exploit: Check for rapid consecutive raids
+            const recentRaids = await Streak.count({
+                where: {
+                    guildId,
+                    lastRaidDate: {
+                        [Op.gte]: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
+                    }
+                }
+            });
+            if (recentRaids > 10) { // More than 10 raids in 5 minutes
+                throw new Error('Too many raids detected. Please wait a few minutes before trying again.');
+            }
+
+            // Get attacker's streak with lock
+            const attackerStreak = await Streak.findOne({
+                where: {
+                    guildId,
+                    userId: attackerId,
+                    triggerWord: word.trim().toLowerCase()
+                },
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!attackerStreak) {
+                throw new Error('You need a streak to raid');
+            }
+
+            // Get defender's streak with lock
+            const defenderStreak = await Streak.findOne({
+                where: {
+                    guildId,
+                    userId: defenderId,
+                    triggerWord: word.trim().toLowerCase()
+                },
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!defenderStreak) {
+                throw new Error('Target has no streak to raid');
+            }
+
+            // Anti-exploit: Check for suspicious streak patterns
+            const defenderRecentUpdates = await Streak.count({
+                where: {
+                    guildId,
+                    userId: defenderId,
+                    lastUpdated: {
+                        [Op.gte]: new Date(Date.now() - 60 * 1000) // Last minute
+                    }
+                }
+            });
+            if (defenderRecentUpdates > 5) { // More than 5 streak updates in a minute
+                throw new Error('Target streak is being rapidly updated. Please try again later.');
+            }
+
+            // Prevent raiding if attacker has fewer streaks than defender
+            if (attackerStreak.count < defenderStreak.count * 0.5) {
+                throw new Error('You need at least 50% of the target\'s streak count to raid');
+            }
+
+            // Anti-exploit: Maximum streak cap for raids
+            const MAX_STREAK_FOR_RAID = 10000;
+            if (defenderStreak.count > MAX_STREAK_FOR_RAID) {
+                throw new Error('Target streak is too high to raid');
+            }
+
+            // Calculate risk amount
+            const riskAmount = Math.floor(attackerStreak.count * (raidConfig.riskPercent / 100));
+            if (riskAmount < 1) {
+                throw new Error('Risk amount must be at least 1 streak');
+            }
+
+            // Calculate potential steal amount (weighted towards lower percentages)
+            const stealPercent = Math.min(
+                raidConfig.maxStealPercent,
+                Math.floor(Math.random() * raidConfig.maxStealPercent * 0.7) + 1 // 70% chance of being below 70% of max
+            );
+            const stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
+            if (stealAmount < 1) {
+                throw new Error('Target streak is too low to raid');
+            }
+
+            // Anti-exploit: Maximum steal amount cap
+            const MAX_STEAL_AMOUNT = 1000;
+            if (stealAmount > MAX_STEAL_AMOUNT) {
+                throw new Error('Maximum steal amount exceeded');
+            }
+
+            // Determine raid success
+            const success = Math.random() * 100 < raidConfig.successChance;
+
+            if (success) {
+                // Successful raid
+                attackerStreak.count += stealAmount;
+                defenderStreak.count -= stealAmount;
+                if (defenderStreak.count < 1) defenderStreak.count = 1;
+            } else {
+                // Failed raid
+                attackerStreak.count -= riskAmount;
+                if (attackerStreak.count < 1) attackerStreak.count = 1;
+            }
+
+            // Update last raid date
+            attackerStreak.lastRaidDate = new Date();
+
+            // Save changes
+            await attackerStreak.save({ transaction });
+            await defenderStreak.save({ transaction });
+
+            // Commit the transaction
+            await transaction.commit();
+
+            return {
+                success,
+                stealAmount,
+                riskAmount,
+                attackerNewCount: attackerStreak.count,
+                defenderNewCount: defenderStreak.count,
+                stealPercent
+            };
+        } catch (error) {
+            // Rollback the transaction on error
+            await transaction.rollback();
+            throw error;
+        }
     }
 };

@@ -55,6 +55,31 @@ const GuildConfig = sequelize.define('GuildConfig', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
         allowNull: false
+    },
+    gamblingEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false
+    },
+    raidEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false
+    },
+    raidMaxStealPercent: {
+        type: DataTypes.INTEGER,
+        defaultValue: 20,
+        allowNull: false
+    },
+    raidRiskPercent: {
+        type: DataTypes.INTEGER,
+        defaultValue: 30,
+        allowNull: false
+    },
+    raidSuccessChance: {
+        type: DataTypes.INTEGER,
+        defaultValue: 40,
+        allowNull: false
     }
 });
 
@@ -150,6 +175,53 @@ async function migrateDatabase() {
                     { transaction }
                 );
                 console.log('Added streakStreakEnabled column to GuildConfigs');
+            }
+
+            // Check and add gamblingEnabled
+            const hasGamblingEnabled = await checkColumnExists('GuildConfigs', 'gamblingEnabled');
+            if (!hasGamblingEnabled) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"gamblingEnabled\" BOOLEAN NOT NULL DEFAULT false",
+                    { transaction }
+                );
+                console.log('Added gamblingEnabled column to GuildConfigs');
+            }
+
+            // Check and add raid configuration
+            const hasRaidEnabled = await checkColumnExists('GuildConfigs', 'raidEnabled');
+            if (!hasRaidEnabled) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidEnabled\" BOOLEAN NOT NULL DEFAULT false",
+                    { transaction }
+                );
+                console.log('Added raidEnabled column to GuildConfigs');
+            }
+
+            const hasRaidMaxStealPercent = await checkColumnExists('GuildConfigs', 'raidMaxStealPercent');
+            if (!hasRaidMaxStealPercent) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidMaxStealPercent\" INTEGER NOT NULL DEFAULT 20",
+                    { transaction }
+                );
+                console.log('Added raidMaxStealPercent column to GuildConfigs');
+            }
+
+            const hasRaidRiskPercent = await checkColumnExists('GuildConfigs', 'raidRiskPercent');
+            if (!hasRaidRiskPercent) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidRiskPercent\" INTEGER NOT NULL DEFAULT 30",
+                    { transaction }
+                );
+                console.log('Added raidRiskPercent column to GuildConfigs');
+            }
+
+            const hasRaidSuccessChance = await checkColumnExists('GuildConfigs', 'raidSuccessChance');
+            if (!hasRaidSuccessChance) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidSuccessChance\" INTEGER NOT NULL DEFAULT 40",
+                    { transaction }
+                );
+                console.log('Added raidSuccessChance column to GuildConfigs');
             }
 
             // Migrate Streaks
