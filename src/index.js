@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const streakManager = require('./storage/streakManager');
 const { initializeDatabase } = require('./database/models');
+const { REST, Routes } = require('discord.js');
 
 // Load environment variables
 config();
@@ -97,7 +98,11 @@ client.once('ready', async () => {
         }
 
         // Register commands globally
-        await client.application.commands.set(commands);
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
         console.log('Successfully registered application commands globally.');
     } catch (error) {
         console.error('Error registering application commands:', error);
@@ -108,7 +113,11 @@ client.once('ready', async () => {
             for (const [guildId, guild] of guilds) {
                 try {
                     // Register new commands
-                    await guild.commands.set(commands);
+                    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+                    await rest.put(
+                        Routes.applicationGuildCommands(client.user.id, guildId),
+                        { body: commands },
+                    );
                     console.log(`Successfully registered commands for guild: ${guild.name}`);
                 } catch (guildError) {
                     console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
