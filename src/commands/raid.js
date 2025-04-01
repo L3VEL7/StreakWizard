@@ -70,12 +70,12 @@ module.exports = {
 
             if (result.success) {
                 await interaction.editReply({
-                    content: `🎉 Raid successful! You stole ${result.stolenAmount} streaks from ${target.username}!\nYour new streak: ${result.newStreak}`,
+                    content: `🎉 Raid successful! You stole ${result.stealAmount} streaks from ${target.username}!\nYour new streak: ${result.attackerNewCount}`,
                     ephemeral: true
                 });
             } else {
                 await interaction.editReply({
-                    content: `💀 Raid failed! You lost ${result.lostAmount} streaks.\nYour new streak: ${result.newStreak}`,
+                    content: `💀 Raid failed! You lost ${result.riskAmount} streaks.\nYour new streak: ${result.attackerNewCount}`,
                     ephemeral: true
                 });
             }

@@ -15,29 +15,60 @@ module.exports = {
 
         try {
             const targetUser = interaction.options.getUser('user') || interaction.user;
-            const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
             
-            if (!triggerWords || triggerWords.length === 0) {
-                await interaction.editReply({
-                    content: '❌ No trigger words have been set up yet.',
-                    ephemeral: true
-                });
-                return;
-            }
-
+            // Use specialized function to get trigger words with fallbacks
+            const triggerWords = await streakManager.getTriggerWordsForProfile(interaction.guildId);
+            
             const embed = new EmbedBuilder()
                 .setColor('#0099ff')
                 .setTitle(`${targetUser.username}'s Streak Profile`)
                 .setThumbnail(targetUser.displayAvatarURL());
 
-            // Get all user streaks at once
-            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, targetUser.id);
+            // Get all user streaks at once - try our specialized function
+            const userStreaks = await streakManager.getUserStreaksForGambling(interaction.guildId, targetUser.id);
             
             // Create a map for easy lookup
             const streaksMap = {};
             userStreaks.forEach(streak => {
                 streaksMap[streak.trigger] = streak;
             });
+
+            // If we have no trigger words but we have streaks, use the streak trigger words
+            if ((!triggerWords || triggerWords.length === 0) && userStreaks.length > 0) {
+                const streakTriggers = [...new Set(userStreaks.map(s => s.trigger))];
+                
+                if (streakTriggers.length > 0) {
+                    // Save these for future use
+                    try {
+                        await streakManager.setTriggerWords(interaction.guildId, streakTriggers);
+                    } catch (saveError) {
+                        console.error('Error saving recovered trigger words:', saveError);
+                    }
+                    
+                    // Use these triggers for the profile
+                    for (const word of streakTriggers) {
+                        const userStreak = streaksMap[word];
+                        const count = userStreak ? userStreak.count : 0;
+                        embed.addFields({ name: `📝 ${word}`, value: `Current Streak: ${count}` });
+                    }
+                    
+                    await interaction.editReply({ embeds: [embed], ephemeral: true });
+                    return;
+                }
+            }
+            
+            // If still no trigger words, show a message but don't fail
+            if (!triggerWords || triggerWords.length === 0) {
+                embed.setDescription('No trigger words have been set up yet.');
+                if (interaction.member.permissions.has('ADMINISTRATOR')) {
+                    embed.addFields({ 
+                        name: 'Admin Tip', 
+                        value: 'Use `/setup word:keyword` to add trigger words for your server.' 
+                    });
+                }
+                await interaction.editReply({ embeds: [embed], ephemeral: true });
+                return;
+            }
 
             // Create profile fields for each trigger word
             for (const word of triggerWords) {
@@ -56,7 +87,8 @@ module.exports = {
                             guildId: interaction.guildId,
                             userId: targetUser.id,
                             triggerWord: word
-                        }
+                        },
+                        attributes: ['id', 'streakStreak', 'triggerWord', 'count', 'bestStreak']
                     });
                     
                     if (streakRecord && streakRecord.streakStreak > 1) {

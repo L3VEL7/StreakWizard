@@ -67,22 +67,146 @@ module.exports = {
         }
     },
 
-    async getTriggerWords(guildId) {
+    // Special function for profile command that directly queries the database
+    async getTriggerWordsForProfile(guildId) {
         try {
+            // First try the normal way
+            const words = await this.getTriggerWords(guildId);
+            if (words && words.length > 0) {
+                return words;
+            }
+            
+            // If that fails, try a direct SQL query
+            const result = await sequelize.query(
+                `SELECT "triggerWords" FROM "GuildConfigs" WHERE "guildId" = :guildId`,
+                {
+                    replacements: { guildId },
+                    type: sequelize.QueryTypes.SELECT,
+                    raw: true
+                }
+            );
+            
+            if (result && result.length > 0 && result[0].triggerWords) {
+                const words = result[0].triggerWords;
+                console.log(`Direct SQL query for trigger words for guild ${guildId}:`, words);
+                return Array.isArray(words) ? words : [];
+            }
+            
+            // If still nothing, check if there are any streaks with trigger words
+            const streakWords = await sequelize.query(
+                `SELECT DISTINCT "triggerWord" FROM "Streaks" WHERE "guildId" = :guildId`,
+                {
+                    replacements: { guildId },
+                    type: sequelize.QueryTypes.SELECT,
+                    raw: true
+                }
+            );
+            
+            if (streakWords && streakWords.length > 0) {
+                const words = streakWords.map(w => w.triggerWord);
+                console.log(`Found trigger words from streaks for guild ${guildId}:`, words);
+                
+                // Save these words back to the guild config
+                try {
+                    await GuildConfig.upsert({
+                        guildId,
+                        triggerWords: words
+                    });
+                } catch (saveError) {
+                    console.error(`Error saving recovered trigger words:`, saveError);
+                    // Continue even if save fails
+                }
+                
+                return words;
+            }
+            
+            // If we still couldn't find anything, return empty array
+            return [];
+        } catch (error) {
+            console.error(`Error in getTriggerWordsForProfile for guild ${guildId}:`, error);
+            return [];
+        }
+    },
+
+    async getTriggerWords(guildId) {
+        // For safety, redirect this to the specialized function if it's being called from profile.js
+        const stack = new Error().stack;
+        if (stack && stack.includes('profile.js')) {
+            return this.getTriggerWordsForProfile(guildId);
+        }
+
+        try {
+            console.log(`[DEBUG] Fetching trigger words for guild ${guildId}...`);
+            
+            // First try direct SQL query to see what's in the database
+            try {
+                const rawResult = await sequelize.query(
+                    `SELECT "triggerWords" FROM "GuildConfigs" WHERE "guildId" = :guildId`,
+                    {
+                        replacements: { guildId },
+                        type: sequelize.QueryTypes.SELECT,
+                        raw: true
+                    }
+                );
+                console.log(`[DEBUG] Raw SQL result for trigger words:`, JSON.stringify(rawResult));
+            } catch (sqlError) {
+                console.error(`[DEBUG] SQL error fetching trigger words:`, sqlError);
+            }
+            
             const config = await GuildConfig.findByPk(guildId);
-            console.log(`Retrieved config for guild ${guildId}:`, config?.toJSON());
+            console.log(`[DEBUG] Retrieved config for guild ${guildId}:`, 
+                config ? JSON.stringify(config.toJSON()) : 'null');
 
             if (!config) {
-                console.log(`No config found for guild ${guildId}`);
+                console.log(`[DEBUG] No config found for guild ${guildId}`);
                 return [];
             }
 
+            // Get the raw value first to check for potential corruption
+            const rawTriggerWords = config.getDataValue('triggerWords');
+            console.log(`[DEBUG] Raw triggerWords value:`, typeof rawTriggerWords, JSON.stringify(rawTriggerWords));
+            
             // Ensure triggerWords is always an array
-            const words = Array.isArray(config.triggerWords) ? config.triggerWords : [];
-            console.log(`Processed trigger words for guild ${guildId}:`, words);
+            const words = Array.isArray(rawTriggerWords) 
+                ? rawTriggerWords.filter(word => word && typeof word === 'string') 
+                : [];
+                
+            console.log(`[DEBUG] Processed trigger words for guild ${guildId}:`, JSON.stringify(words));
+            
+            // If words array is empty but we had raw data, there might be corruption
+            if (words.length === 0 && rawTriggerWords && typeof rawTriggerWords === 'string') {
+                // Try to recover by parsing the string
+                console.log(`[DEBUG] Attempting to recover trigger words from string`);
+                try {
+                    // Try comma-separated values
+                    const recoveredWords = rawTriggerWords.split(',')
+                        .map(w => w.trim().toLowerCase())
+                        .filter(w => w.length > 0);
+                        
+                    if (recoveredWords.length > 0) {
+                        console.log(`[DEBUG] Recovered words from string:`, JSON.stringify(recoveredWords));
+                        
+                        // Save these back to the database
+                        try {
+                            await GuildConfig.upsert({
+                                guildId,
+                                triggerWords: recoveredWords
+                            });
+                            console.log(`[DEBUG] Saved recovered trigger words to database`);
+                        } catch (saveError) {
+                            console.error(`[DEBUG] Error saving recovered trigger words:`, saveError);
+                        }
+                        
+                        return recoveredWords;
+                    }
+                } catch (parseError) {
+                    console.error(`[DEBUG] Error recovering trigger words:`, parseError);
+                }
+            }
+            
             return words;
         } catch (error) {
-            console.error(`Error getting trigger words for guild ${guildId}:`, error);
+            console.error(`[DEBUG] Error getting trigger words for guild ${guildId}:`, error);
             return [];
         }
     },

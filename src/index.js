@@ -255,20 +255,43 @@ client.on('messageCreate', async message => {
         // Ignore messages from bots
         if (message.author.bot) return;
 
+        console.log(`[DEBUG] Processing message from ${message.author.tag} in ${message.guild?.name || 'DM'}`);
+        console.log(`[DEBUG] Message content: "${message.content}"`);
+
         // Get trigger words for this guild
         const triggerWords = await streakManager.getTriggerWords(message.guildId);
-        if (!triggerWords || triggerWords.length === 0) return;
+        console.log(`[DEBUG] Trigger words for guild ${message.guildId}:`, JSON.stringify(triggerWords));
+        
+        if (!triggerWords || triggerWords.length === 0) {
+            console.log(`[DEBUG] No trigger words found for guild ${message.guildId}`);
+            return;
+        }
 
         // Check if message contains any trigger words
         const messageContent = message.content.toLowerCase();
+        console.log(`[DEBUG] Lowercase message: "${messageContent}"`);
+        
+        let foundMatch = false;
+        // Check each trigger word individually and log the result
+        for (const word of triggerWords) {
+            const matches = messageContent.includes(word);
+            console.log(`[DEBUG] Checking if message contains "${word}": ${matches}`);
+            if (matches) foundMatch = true;
+        }
+        
         const matchedWord = triggerWords.find(word => messageContent.includes(word));
+        console.log(`[DEBUG] Matched word: ${matchedWord || 'None'}`);
 
         if (matchedWord) {
-            console.log(`Processing trigger word: ${matchedWord}`);
+            console.log(`[DEBUG] Processing trigger word: ${matchedWord}`);
             const result = await streakManager.incrementStreak(message.guildId, message.author.id, matchedWord);
+            console.log(`[DEBUG] Increment result:`, JSON.stringify(result));
             
             if (result === -1) {
+                console.log(`[DEBUG] Increment returned -1, checking remaining time`);
                 const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, matchedWord);
+                console.log(`[DEBUG] Remaining time:`, JSON.stringify(remainingTime));
+                
                 if (remainingTime) {
                     const timeMessage = remainingTime.hours > 0 
                         ? `${remainingTime.hours}h ${remainingTime.minutes}m`
@@ -279,6 +302,8 @@ client.on('messageCreate', async message => {
             }
 
             await handleStreakUpdate(message, result, matchedWord);
+        } else {
+            console.log(`[DEBUG] No trigger words matched in this message`);
         }
     } catch (error) {
         console.error('Error processing message:', error);
