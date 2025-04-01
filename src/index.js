@@ -113,6 +113,15 @@ client.once('ready', async () => {
     client.commands.forEach(cmd => console.log(`- ${cmd.data.name}`));
 
     try {
+        // Check if we should skip registration
+        const SKIP_REGISTRATION = process.env.SKIP_REGISTRATION === 'true';
+        
+        if (SKIP_REGISTRATION) {
+            console.log('⚠️ SKIPPING COMMAND REGISTRATION as requested by SKIP_REGISTRATION=true');
+            console.log('Commands will not be updated. Use this only for emergency situations.');
+            return;
+        }
+        
         // Register slash commands
         const commands = [];
         for (const command of client.commands.values()) {
@@ -121,8 +130,8 @@ client.once('ready', async () => {
 
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         
-        // FORCE CLEANUP MODE: Set to true to clean up all commands first
-        const FORCE_CLEANUP = true;
+        // FORCE_CLEANUP MODE: Set to true to clean up all commands first
+        const FORCE_CLEANUP = false; // Changed to false to prevent constant cleanup
 
         // Check if we're in development mode
         const DEV_MODE = process.env.DEV_MODE === 'true';
@@ -142,7 +151,7 @@ client.once('ready', async () => {
                 );
                 console.log('✅ Global commands cleared');
             } catch (error) {
-                console.error('Error clearing global commands:', error);
+                console.error('Error clearing global commands:', error.message);
             }
             
             // Then clear all guild commands
@@ -158,40 +167,59 @@ client.once('ready', async () => {
                     );
                     console.log(`✅ Commands cleared from guild: ${guild.name}`);
                 } catch (error) {
-                    console.error(`Error clearing commands from guild ${guild.name}:`, error);
+                    console.error(`Error clearing commands from guild ${guild.name}:`, error.message);
                 }
             }
             
             console.log('🧹 Command cleanup completed');
         }
         
-        // Now register commands based on the mode
-        if (DEV_MODE) {
-            // In development mode, register commands per guild for faster updates
-            console.log('🧪 Development mode: Registering guild-specific commands...');
-            const guilds = await client.guilds.fetch();
+        // Simplified command registration - register to both global and guild
+        console.log('🔄 Registering commands...');
+
+        // Register commands globally first (this is the most important)
+        try {
+            console.log('Registering global commands - this may take up to an hour to propagate...');
+            try {
+                await rest.put(
+                    Routes.applicationCommands(client.user.id),
+                    { body: commands }
+                );
+                console.log('✅ Global commands registered');
+            } catch (globalError) {
+                console.error('Error registering global commands:', globalError.message);
+            }
             
-            for (const [guildId, guild] of guilds) {
-                try {
-                    console.log(`Registering commands to guild: ${guild.name}`);
-                    await rest.put(
-                        Routes.applicationGuildCommands(client.user.id, guildId),
-                        { body: commands }
-                    );
-                    console.log(`✅ Commands registered to guild: ${guild.name}`);
-                } catch (error) {
-                    console.error(`Error registering commands to guild ${guild.name}:`, error);
+            // If in dev mode, also register to a few key guilds for faster testing
+            if (DEV_MODE) {
+                console.log('Development mode: Also registering to up to 2 guilds for faster testing');
+                const guilds = await client.guilds.fetch();
+                let count = 0;
+                
+                for (const [guildId, guild] of guilds) {
+                    if (count >= 2) break; // Only register to first 2 guilds to avoid rate limits
+                    
+                    try {
+                        console.log(`Registering commands to guild: ${guild.name}`);
+                        await rest.put(
+                            Routes.applicationGuildCommands(client.user.id, guildId),
+                            { body: commands }
+                        );
+                        console.log(`✅ Commands registered to guild: ${guild.name}`);
+                        count++;
+                        
+                        // Add a small delay to avoid rate limiting
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                    } catch (error) {
+                        console.error(`Error registering commands to guild ${guild.name}:`, error.message);
+                    }
                 }
             }
-            console.log('✅ All commands registered to guilds');
-        } else {
-            // In production mode, register commands globally
-            console.log('🚀 Production mode: Registering global commands...');
-            await rest.put(
-                Routes.applicationCommands(client.user.id),
-                { body: commands }
-            );
-            console.log('✅ All commands registered globally');
+            
+            console.log('✅ Command registration completed');
+        } catch (error) {
+            console.error('Error during command registration:', error.message);
+            console.log('Continuing with bot startup anyway...');
         }
     } catch (error) {
         console.error('Failed to register commands:', error);
@@ -215,13 +243,30 @@ client.on('interactionCreate', async interaction => {
     }
 
     try {
+        // Log command execution
+        console.log(`[COMMAND] ${interaction.user.tag} (${interaction.user.id}) used /${interaction.commandName} in ${interaction.guild ? interaction.guild.name : 'DM'}`);
+        
+        // Check if the command requires guild context but is used in DMs
+        if (command.guildOnly && !interaction.guild) {
+            return await interaction.reply({
+                content: '❌ This command can only be used in a server, not in DMs.',
+                ephemeral: true
+            });
+        }
+        
+        // Execute the command
         await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
         
         // Provide more specific error messages based on the error type
         let errorMessage = 'There was an error executing this command!';
-        if (error.name === 'SequelizeConnectionError') {
+        
+        if (error.message && error.message.includes('permissions')) {
+            errorMessage = 'There was a permissions error. Please make sure the bot has the required permissions.';
+        } else if (error.message && error.message.includes('null')) {
+            errorMessage = 'An error occurred accessing command data. Please try again in a server channel.';
+        } else if (error.name === 'SequelizeConnectionError') {
             errorMessage = 'Database connection error. Please try again later.';
         } else if (error.name === 'SequelizeValidationError') {
             errorMessage = 'Invalid data provided. Please check your input.';
@@ -238,10 +283,10 @@ client.on('interactionCreate', async interaction => {
                     ephemeral: true
                 });
             } else {
-                await interaction.reply({
+        await interaction.reply({
                     content: truncateMessage(errorMessage),
-                    ephemeral: true
-                });
+            ephemeral: true
+        });
             }
         } catch (replyError) {
             console.error('Failed to send error message:', replyError);
@@ -253,7 +298,7 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', async message => {
     try {
         // Ignore messages from bots
-        if (message.author.bot) return;
+    if (message.author.bot) return;
 
         console.log(`[DEBUG] Processing message from ${message.author.tag} in ${message.guild?.name || 'DM'}`);
         console.log(`[DEBUG] Message content: "${message.content}"`);
@@ -315,15 +360,15 @@ client.on('messageCreate', async message => {
 async function handleStreakUpdate(message, result, trigger) {
     try {
         const { count, streakStreak, milestone, streakStreakMilestone, unlockedAchievements = [] } = result;
-        
-        // Convert streak number to emoji
-        let streakEmoji;
+
+                // Convert streak number to emoji
+                let streakEmoji;
         if (count <= 10) {
-            const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+                    const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
             streakEmoji = numberEmojis[count - 1];
-        } else {
-            streakEmoji = '🔥';
-        }
+                } else {
+                    streakEmoji = '🔥';
+                }
 
         // Remove previous reactions
         try {
@@ -354,7 +399,7 @@ async function handleStreakUpdate(message, result, trigger) {
             for (const achievement of unlockedAchievements) {
                 await message.react(achievement.emoji).catch(console.error);
             }
-        } catch (error) {
+            } catch (error) {
             console.error('Error adding reactions:', error);
         }
         
