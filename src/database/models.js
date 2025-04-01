@@ -151,6 +151,10 @@ const Streak = sequelize.define('Streak', {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,
         allowNull: false
+    },
+    lastRaidDate: {
+        type: DataTypes.DATE,
+        allowNull: true
     }
 });
 
@@ -291,7 +295,8 @@ async function migrateDatabase() {
             const columnsToAdd = [
                 { name: 'streakStreak', type: 'INTEGER NOT NULL DEFAULT 0' },
                 { name: 'lastStreakDate', type: 'DATE' },
-                { name: 'bestStreak', type: 'INTEGER NOT NULL DEFAULT 1' }
+                { name: 'bestStreak', type: 'INTEGER NOT NULL DEFAULT 1' },
+                { name: 'lastRaidDate', type: 'DATE' }
             ];
 
             for (const column of columnsToAdd) {
@@ -324,7 +329,8 @@ async function migrateDatabase() {
                 'bestStreak': 'INTEGER NOT NULL DEFAULT 1',
                 'streakStreak': 'INTEGER NOT NULL DEFAULT 0',
                 'lastStreakDate': 'DATE',
-                'lastUpdated': 'DATE NOT NULL DEFAULT CURRENT_TIMESTAMP'
+                'lastUpdated': 'DATE NOT NULL DEFAULT CURRENT_TIMESTAMP',
+                'lastRaidDate': 'DATE'
             };
 
             for (const [columnName, columnType] of Object.entries(requiredColumns)) {
