@@ -31,9 +31,9 @@ module.exports = {
                 .setTitle('⚙️ Server Configuration')
                 .setDescription('Select a feature to configure from the dropdown menu below.')
                 .addFields(
-                    { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? 'Enabled' : 'Disabled'}` },
-                    { name: '⚔️ Raid System', value: `Enabled: ${raidConfig.enabled ? 'Yes' : 'No'}\nMax Steal: ${raidConfig.maxStealPercent}%\nRisk: ${raidConfig.riskPercent}%\nSuccess Chance: ${raidConfig.successChance}%\nCooldown: ${raidConfig.cooldownHours}h` },
-                    { name: '🎲 Gambling System', value: `Enabled: ${gamblingConfig.enabled ? 'Yes' : 'No'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
+                    { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
+                    { name: '⚔️ Raid System', value: `Status: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidConfig.maxStealPercent}%\nRisk: ${raidConfig.riskPercent}%\nSuccess Chance: ${raidConfig.successChance}%\nCooldown: ${raidConfig.cooldownHours}h` },
+                    { name: '🎲 Gambling System', value: `Status: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
                 );
 
             // Create the dropdown menu
@@ -118,7 +118,40 @@ module.exports = {
                                 break;
                         }
                     }
-                    // Handle other subsystem menus here
+                    // Handle raid configuration options
+                    else if (i.customId === 'raid_select') {
+                        switch (i.values[0]) {
+                            case 'toggle_raid':
+                                await handleToggleRaid(i, interaction);
+                                break;
+                            case 'max_steal':
+                                await handleRaidMaxSteal(i, interaction);
+                                break;
+                            case 'risk':
+                                await handleRaidRisk(i, interaction);
+                                break;
+                            case 'success_chance':
+                                await handleRaidSuccessChance(i, interaction);
+                                break;
+                            case 'cooldown':
+                                await handleRaidCooldown(i, interaction);
+                                break;
+                        }
+                    }
+                    // Handle core configuration options
+                    else if (i.customId === 'core_select') {
+                        switch (i.values[0]) {
+                            case 'trigger_words':
+                                await handleTriggerWords(i, interaction);
+                                break;
+                            case 'streak_limit':
+                                await handleStreakLimit(i, interaction);
+                                break;
+                            case 'streak_streak':
+                                await handleStreakStreak(i, interaction);
+                                break;
+                        }
+                    }
                 } catch (error) {
                     console.error('Error handling configuration:', error);
                     await i.update({
@@ -145,14 +178,18 @@ module.exports = {
 
 // Helper functions for handling different configuration sections
 async function handleCoreConfig(interaction, originalInteraction) {
+    const streakStreakEnabled = await streakManager.isStreakStreakEnabled(interaction.guildId);
+    const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
+    const streakLimit = await streakManager.getStreakLimit(interaction.guildId);
+    
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('🎯 Core Features Configuration')
         .setDescription('Select an option to configure:')
         .addFields(
-            { name: 'Trigger Words', value: 'Add or remove trigger words for streaks' },
-            { name: 'Streak Limit', value: 'Set how often users can update their streaks' },
-            { name: 'Streak Streak', value: 'Enable or disable streak streak tracking' }
+            { name: 'Trigger Words', value: `Current: ${triggerWords.join(', ') || 'None'}` },
+            { name: 'Streak Limit', value: `Current: ${streakLimit || 'None'}` },
+            { name: 'Streak Streak', value: `Current: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` }
         );
 
     const selectRow = new ActionRowBuilder()
@@ -174,7 +211,7 @@ async function handleCoreConfig(interaction, originalInteraction) {
                         emoji: '⏰'
                     },
                     {
-                        label: 'Streak Streak',
+                        label: `Streak Streak ${streakStreakEnabled ? '✅' : '❌'}`,
                         description: 'Toggle streak streak feature',
                         value: 'streak_streak',
                         emoji: '📅'
@@ -199,7 +236,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
         .setTitle('⚔️ Raid System Configuration')
         .setDescription('Select a setting to configure:')
         .addFields(
-            { name: 'Enable/Disable', value: 'Turn the raid system on or off' },
+            { name: 'Enable/Disable', value: `Current: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}` },
             { name: 'Max Steal', value: `Current: ${raidConfig.maxStealPercent}%` },
             { name: 'Risk', value: `Current: ${raidConfig.riskPercent}%` },
             { name: 'Success Chance', value: `Current: ${raidConfig.successChance}%` },
@@ -213,7 +250,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
                 .setPlaceholder('Select a setting')
                 .addOptions([
                     {
-                        label: 'Enable/Disable',
+                        label: `Enable/Disable ${raidConfig.enabled ? '✅' : '❌'}`,
                         description: 'Toggle raid system',
                         value: 'toggle_raid',
                         emoji: '🔒'
@@ -262,7 +299,7 @@ async function handleGamblingConfig(interaction, originalInteraction) {
         .setTitle('🎲 Gambling System Configuration')
         .setDescription('Select a setting to configure:')
         .addFields(
-            { name: 'Enable/Disable', value: 'Turn the gambling system on or off' },
+            { name: 'Enable/Disable', value: `Current: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}` },
             { name: 'Success Chance', value: `Current: ${gamblingConfig.successChance || 50}%` },
             { name: 'Max Gamble Percent', value: `Current: ${gamblingConfig.maxGamblePercent || 50}%` },
             { name: 'Min Streaks', value: `Current: ${gamblingConfig.minStreaks || 10} streaks` }
@@ -275,7 +312,7 @@ async function handleGamblingConfig(interaction, originalInteraction) {
                 .setPlaceholder('Select a setting')
                 .addOptions([
                     {
-                        label: 'Enable/Disable',
+                        label: `Enable/Disable ${gamblingConfig.enabled ? '✅' : '❌'}`,
                         description: 'Toggle gambling system',
                         value: 'toggle_gambling',
                         emoji: '🔒'
@@ -373,4 +410,123 @@ async function handleGamblingMaxPercent(interaction, originalInteraction) {
 async function handleGamblingMinStreaks(interaction, originalInteraction) {
     // For now just return to gambling config
     await handleGamblingConfig(interaction, originalInteraction);
+}
+
+// Placeholder functions for other configuration options
+async function handleToggleRaid(interaction, originalInteraction) {
+    try {
+        const currentConfig = await streakManager.getRaidConfig(interaction.guildId);
+        const newStatus = !currentConfig.enabled;
+
+        await streakManager.updateRaidConfig(interaction.guildId, {
+            enabled: newStatus,
+            maxStealPercent: currentConfig.maxStealPercent,
+            riskPercent: currentConfig.riskPercent,
+            successChance: currentConfig.successChance,
+            cooldownHours: currentConfig.cooldownHours
+        });
+
+        const status = newStatus ? 'enabled' : 'disabled';
+        const embed = new EmbedBuilder()
+            .setColor(newStatus ? '#00FF00' : '#FF0000')
+            .setTitle('⚔️ Raid System Configuration')
+            .setDescription(`Raid system has been ${status}.`)
+            .addFields(
+                { name: 'Current Settings', value: 
+                    `• Status: ${newStatus ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `• Max Steal: ${currentConfig.maxStealPercent}%\n` +
+                    `• Risk: ${currentConfig.riskPercent}%\n` +
+                    `• Success Chance: ${currentConfig.successChance}%\n` +
+                    `• Cooldown: ${currentConfig.cooldownHours}h`
+                }
+            );
+
+        // Return to raid config menu after updating
+        await handleRaidConfig(interaction, originalInteraction);
+    } catch (error) {
+        console.error('Error toggling raid system:', error);
+        await interaction.update({
+            content: '❌ An error occurred while toggling the raid system.',
+            ephemeral: true
+        });
+    }
+}
+
+async function handleRaidMaxSteal(interaction, originalInteraction) {
+    // Implementation needed
+    await interaction.update({
+        content: '❌ This feature is not implemented yet.',
+        ephemeral: true
+    });
+}
+
+async function handleRaidRisk(interaction, originalInteraction) {
+    // Implementation needed
+    await interaction.update({
+        content: '❌ This feature is not implemented yet.',
+        ephemeral: true
+    });
+}
+
+async function handleRaidSuccessChance(interaction, originalInteraction) {
+    // Implementation needed
+    await interaction.update({
+        content: '❌ This feature is not implemented yet.',
+        ephemeral: true
+    });
+}
+
+async function handleRaidCooldown(interaction, originalInteraction) {
+    // Implementation needed
+    await interaction.update({
+        content: '❌ This feature is not implemented yet.',
+        ephemeral: true
+    });
+}
+
+async function handleTriggerWords(interaction, originalInteraction) {
+    // Implementation needed
+    await interaction.update({
+        content: '❌ This feature is not implemented yet.',
+        ephemeral: true
+    });
+}
+
+async function handleStreakLimit(interaction, originalInteraction) {
+    // Implementation needed
+    await interaction.update({
+        content: '❌ This feature is not implemented yet.',
+        ephemeral: true
+    });
+}
+
+async function handleStreakStreak(interaction, originalInteraction) {
+    try {
+        const currentStatus = await streakManager.isStreakStreakEnabled(interaction.guildId);
+        const newStatus = !currentStatus;
+        
+        // Update streak streak status
+        await streakManager.setStreakStreakEnabled(interaction.guildId, newStatus);
+        
+        const status = newStatus ? 'enabled' : 'disabled';
+        const embed = new EmbedBuilder()
+            .setColor(newStatus ? '#00FF00' : '#FF0000')
+            .setTitle('📅 Streak Streak Configuration')
+            .setDescription(`Streak Streak tracking has been ${status}.`)
+            .addFields(
+                { name: 'What is Streak Streak?', value: 
+                    `Streak Streak tracks how many consecutive days a user has maintained their streaks.\n` +
+                    `When ${newStatus ? 'enabled' : 'disabled'}, users ${newStatus ? 'will' : 'will not'} earn streak streak bonuses.`
+                }
+            );
+            
+        // Return to core config menu after updating
+        await handleCoreConfig(interaction, originalInteraction);
+    } catch (error) {
+        console.error('Error toggling streak streak:', error);
+        await interaction.update({
+            content: '❌ An error occurred while toggling the streak streak feature.',
+            ephemeral: true
+        });
+    }
 }
