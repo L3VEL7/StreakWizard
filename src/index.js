@@ -1,3 +1,25 @@
+/**
+ * Streakwiz Discord Bot
+ * 
+ * A Discord bot for tracking and managing user streaks with advanced features:
+ * 
+ * Core Features:
+ * - Streak tracking: Track user streaks for customizable trigger words
+ * - Streak Streak: Track consecutive days users maintain their streaks
+ * - Milestones: Celebrate when users reach specific streak counts
+ * - Achievements: Award special achievements for various streak accomplishments
+ * 
+ * Enhanced Features:
+ * - Raid System: Users can raid each other's streaks to steal or lose streaks
+ * - Gambling: Users can gamble their streaks for a chance to win more
+ * 
+ * Administration:
+ * - Setup-Embed: Interactive configuration panel (/setup-embed) for all features
+ * - Individual commands for toggling features (/togglegambling, etc.)
+ * - Customizable settings for all systems
+ * 
+ * PostgreSQL database for reliable data storage
+ */
 const { Client, GatewayIntentBits, Collection, PermissionFlagsBits } = require('discord.js');
 const { config } = require('dotenv');
 const path = require('path');
@@ -97,35 +119,51 @@ client.once('ready', async () => {
             commands.push(command.data.toJSON());
         }
 
-        // Only register commands per guild - do not register globally
-        // This prevents duplicate commands in the UI
-        const guilds = await client.guilds.fetch();
-        console.log(`Registering commands in ${guilds.size} guilds...`);
-        
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         
-        for (const [guildId, guild] of guilds) {
+        // Determine if we're in a production environment (Railway)
+        const isProduction = process.env.RAILWAY_ENVIRONMENT === 'production';
+        
+        if (isProduction) {
+            // PRODUCTION: Register commands globally for Railway deployment
+            console.log('Registering commands globally (production environment)...');
             try {
                 await rest.put(
-                    Routes.applicationGuildCommands(client.user.id, guildId),
-                    { body: commands },
+                    Routes.applicationCommands(client.user.id),
+                    { body: commands }
                 );
-                console.log(`Successfully registered commands for guild: ${guild.name}`);
-            } catch (guildError) {
-                console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
+                console.log('Successfully registered global commands');
+            } catch (error) {
+                console.error('Failed to register global commands:', error);
             }
-        }
-        
-        // Clear any global commands that may have been registered previously
-        // This will help if there were previously registered global commands
-        try {
-            await rest.put(
-                Routes.applicationCommands(client.user.id),
-                { body: [] }
-            );
-            console.log('Successfully cleared global commands');
-        } catch (globalError) {
-            console.error('Failed to clear global commands:', globalError);
+        } else {
+            // DEVELOPMENT: Register commands per guild
+            console.log('Development environment detected. Registering commands per guild...');
+            const guilds = await client.guilds.fetch();
+            console.log(`Registering commands in ${guilds.size} guilds...`);
+            
+            for (const [guildId, guild] of guilds) {
+                try {
+                    await rest.put(
+                        Routes.applicationGuildCommands(client.user.id, guildId),
+                        { body: commands },
+                    );
+                    console.log(`Successfully registered commands for guild: ${guild.name}`);
+                } catch (guildError) {
+                    console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
+                }
+            }
+            
+            // Clear any global commands that may have been registered previously
+            try {
+                await rest.put(
+                    Routes.applicationCommands(client.user.id),
+                    { body: [] }
+                );
+                console.log('Successfully cleared global commands');
+            } catch (globalError) {
+                console.error('Failed to clear global commands:', globalError);
+            }
         }
     } catch (error) {
         console.error('Failed to register commands:', error);

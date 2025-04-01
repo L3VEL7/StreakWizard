@@ -1,10 +1,21 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
+/**
+ * Setup-Embed Command
+ * 
+ * An interactive configuration panel for server administrators to configure
+ * all bot features through a visual menu system with dropdowns and buttons.
+ * 
+ * Features include:
+ * - Core feature configuration (trigger words, streak limits, streak streak)
+ * - Raid system configuration (toggle, steal %, risk %, success chance, cooldown)
+ * - Gambling system configuration (toggle, win chance, max %, min streaks)
+ */
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup-embed')
-        .setDescription('Open the interactive configuration panel')
+        .setDescription('Open the interactive configuration panel for all bot features')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
@@ -25,7 +36,7 @@ module.exports = {
             const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
             const streakLimit = await streakManager.getStreakLimit(interaction.guildId);
 
-            // Create the main embed
+            // Create the main embed with current configuration summary
             const embed = new EmbedBuilder()
                 .setColor('#0099ff')
                 .setTitle('⚙️ Server Configuration')
@@ -36,7 +47,7 @@ module.exports = {
                     { name: '🎲 Gambling System', value: `Status: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
                 );
 
-            // Create the dropdown menu
+            // Create the main feature selection dropdown menu
             const row = new ActionRowBuilder()
                 .addComponents(
                     new StringSelectMenuBuilder()
@@ -70,12 +81,13 @@ module.exports = {
                 ephemeral: true
             });
 
-            // Create a collector for the dropdown menu
+            // Create a collector for all menu interactions with 5 minute timeout
             const collector = message.createMessageComponentCollector({
                 time: 300000 // 5 minutes
             });
 
             collector.on('collect', async i => {
+                // Verify that only the command user can interact with the menus
                 if (i.user.id !== interaction.user.id) {
                     return await i.reply({
                         content: '❌ Only the command user can use this menu.'
@@ -83,7 +95,9 @@ module.exports = {
                 }
 
                 try {
-                    // Check for main menu selections
+                    // Handle all possible interaction types
+                    
+                    // 1. Main menu selections
                     if (i.customId === 'config_select') {
                         switch (i.values[0]) {
                             case 'core':
@@ -97,11 +111,11 @@ module.exports = {
                                 break;
                         }
                     }
-                    // Check for back button
+                    // 2. Back button to main menu
                     else if (i.customId === 'back_to_main') {
                         await module.exports.execute(interaction);
                     }
-                    // Check for gambling options
+                    // 3. Gambling system configuration options
                     else if (i.customId === 'gambling_select') {
                         switch (i.values[0]) {
                             case 'toggle_gambling':
@@ -118,7 +132,7 @@ module.exports = {
                                 break;
                         }
                     }
-                    // Handle raid configuration options
+                    // 4. Raid system configuration options
                     else if (i.customId === 'raid_select') {
                         switch (i.values[0]) {
                             case 'toggle_raid':
@@ -138,7 +152,7 @@ module.exports = {
                                 break;
                         }
                     }
-                    // Handle core configuration options
+                    // 5. Core features configuration options
                     else if (i.customId === 'core_select') {
                         switch (i.values[0]) {
                             case 'trigger_words':
@@ -160,11 +174,13 @@ module.exports = {
                 }
             });
 
+            // Handle timeout of the configuration panel
             collector.on('end', async () => {
                 await interaction.editReply({
                     content: '⏰ Configuration panel timed out. Use /setup-embed to open a new panel.',
-                    components: []
-                , ephemeral: true});
+                    components: [],
+                    ephemeral: true
+                });
             });
         } catch (error) {
             console.error('Error creating setup panel:', error);
@@ -176,7 +192,14 @@ module.exports = {
     },
 };
 
-// Helper functions for handling different configuration sections
+/**
+ * Handle Core Features Configuration
+ * Displays and processes core bot features like trigger words, 
+ * streak limits, and streak streak tracking.
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleCoreConfig(interaction, originalInteraction) {
     const streakStreakEnabled = await streakManager.isStreakStreakEnabled(interaction.guildId);
     const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
@@ -228,6 +251,14 @@ async function handleCoreConfig(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Handle Raid System Configuration
+ * Displays and processes raid system settings like enabling/disabling,
+ * steal percentages, risk, success chance, and cooldown periods.
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleRaidConfig(interaction, originalInteraction) {
     const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
     
@@ -291,6 +322,14 @@ async function handleRaidConfig(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Handle Gambling System Configuration
+ * Displays and processes gambling system settings like enabling/disabling,
+ * success chance, maximum gambling percentage, and minimum streak requirements.
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleGamblingConfig(interaction, originalInteraction) {
     const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
     
@@ -347,7 +386,10 @@ async function handleGamblingConfig(interaction, originalInteraction) {
     });
 }
 
-// Add back button function
+/**
+ * Creates a back button component that returns to the main menu
+ * @returns {ActionRowBuilder} The back button row
+ */
 function createBackButton() {
     return new ActionRowBuilder()
         .addComponents(
@@ -358,7 +400,13 @@ function createBackButton() {
         );
 }
 
-// Handlers for gambling config options
+/**
+ * Toggles the gambling system on/off
+ * Updates the database and shows the new status to the user
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleToggleGambling(interaction, originalInteraction) {
     try {
         const currentConfig = await streakManager.getGamblingConfig(interaction.guildId);
@@ -396,23 +444,46 @@ async function handleToggleGambling(interaction, originalInteraction) {
     }
 }
 
-// Placeholder functions for other gambling settings
+/**
+ * Configure gambling success chance (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleGamblingSuccessChance(interaction, originalInteraction) {
     // For now just return to gambling config
     await handleGamblingConfig(interaction, originalInteraction);
 }
 
+/**
+ * Configure maximum gambling percentage (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleGamblingMaxPercent(interaction, originalInteraction) {
     // For now just return to gambling config
     await handleGamblingConfig(interaction, originalInteraction);
 }
 
+/**
+ * Configure minimum streaks required for gambling (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleGamblingMinStreaks(interaction, originalInteraction) {
     // For now just return to gambling config
     await handleGamblingConfig(interaction, originalInteraction);
 }
 
-// Placeholder functions for other configuration options
+/**
+ * Toggles the raid system on/off
+ * Updates the database and shows the new status to the user
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleToggleRaid(interaction, originalInteraction) {
     try {
         const currentConfig = await streakManager.getRaidConfig(interaction.guildId);
@@ -452,6 +523,12 @@ async function handleToggleRaid(interaction, originalInteraction) {
     }
 }
 
+/**
+ * Configure maximum raid steal percentage (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleRaidMaxSteal(interaction, originalInteraction) {
     // Implementation needed
     await interaction.update({
@@ -460,6 +537,12 @@ async function handleRaidMaxSteal(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Configure raid risk percentage (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleRaidRisk(interaction, originalInteraction) {
     // Implementation needed
     await interaction.update({
@@ -468,6 +551,12 @@ async function handleRaidRisk(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Configure raid success chance (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleRaidSuccessChance(interaction, originalInteraction) {
     // Implementation needed
     await interaction.update({
@@ -476,6 +565,12 @@ async function handleRaidSuccessChance(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Configure raid cooldown period (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleRaidCooldown(interaction, originalInteraction) {
     // Implementation needed
     await interaction.update({
@@ -484,6 +579,12 @@ async function handleRaidCooldown(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Configure trigger words for streaks (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleTriggerWords(interaction, originalInteraction) {
     // Implementation needed
     await interaction.update({
@@ -492,6 +593,12 @@ async function handleTriggerWords(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Configure streak limits (not implemented yet)
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleStreakLimit(interaction, originalInteraction) {
     // Implementation needed
     await interaction.update({
@@ -500,6 +607,13 @@ async function handleStreakLimit(interaction, originalInteraction) {
     });
 }
 
+/**
+ * Toggles the streak streak feature on/off
+ * Updates the database and shows the new status to the user
+ * 
+ * @param {Interaction} interaction - The Discord interaction
+ * @param {Interaction} originalInteraction - The original command interaction
+ */
 async function handleStreakStreak(interaction, originalInteraction) {
     try {
         const currentStatus = await streakManager.isStreakStreakEnabled(interaction.guildId);

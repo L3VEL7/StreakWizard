@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,json,md}\"",
-    "migrate": "node src/database/migrate.js"
+    "migrate": "node src/database/migrate.js",
+    "railway:start": "RAILWAY_ENVIRONMENT=production node src/index.js"
   },
   "keywords": ["discord", "bot", "streak", "tracking"],
   "author": "",
