@@ -528,9 +528,44 @@ function escapeSQLString(str) {
     return str.replace(/'/g, "''");
 }
 
+// Helper function to ensure lastRaidDate column exists
+async function ensureLastRaidDateColumn() {
+    try {
+        // Check if column exists
+        const exists = await checkColumnExists('Streaks', 'lastRaidDate');
+        if (!exists) {
+            console.log('lastRaidDate column missing, attempting to add it directly...');
+            // Add the column without using a transaction
+            try {
+                await sequelize.query(
+                    `ALTER TABLE "Streaks" ADD COLUMN "lastRaidDate" DATE`
+                );
+                console.log('Successfully added lastRaidDate column');
+                return true;
+            } catch (columnError) {
+                // If error is "column already exists", that's fine
+                if (columnError.parent && columnError.parent.code === '42701') {
+                    console.log('Column lastRaidDate already exists, continuing...');
+                    return true;
+                }
+                // For other errors, log but don't fail
+                console.error('Error adding lastRaidDate column:', columnError.message);
+                return false;
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error('Error checking/adding lastRaidDate column:', error.message);
+        return false;
+    }
+}
+
 async function initializeDatabase() {
     try {
         console.log('Starting database initialization...');
+        
+        // Ensure critical columns exist
+        await ensureLastRaidDateColumn();
         
         // Run migration first - even if it fails, try to continue
         try {

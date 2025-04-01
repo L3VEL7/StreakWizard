@@ -54,7 +54,7 @@ module.exports = {
             }
 
             // Fetch user's streaks and verify they have enough to gamble
-            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
+            const userStreaks = await streakManager.getUserStreaksForGambling(interaction.guildId, interaction.user.id);
             const userStreak = userStreaks.find(s => s.trigger === word);
             const currentStreak = userStreak ? userStreak.count : 0;
 
