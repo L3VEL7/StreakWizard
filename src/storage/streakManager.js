@@ -1,5 +1,5 @@
 const { GuildConfig, Streak } = require('../database/models');
-const { Op } = require('sequelize');
+const { Sequelize, Op } = require('sequelize');
 const sequelize = require('../database/config');
 
 // Define milestone levels
@@ -237,7 +237,7 @@ module.exports = {
     async gambleStreak(guildId, userId, word, percentage, choice) {
         // Start a transaction with SERIALIZABLE isolation level
         const transaction = await sequelize.transaction({
-            isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+            isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
         });
 
         try {
@@ -253,7 +253,7 @@ module.exports = {
                     userId,
                     triggerWord: word.trim().toLowerCase()
                 },
-                lock: transaction.LOCK.UPDATE
+                lock: Sequelize.Transaction.LOCK.UPDATE
             });
 
             if (!streak) {
@@ -520,7 +520,7 @@ module.exports = {
             try {
                 // Start a transaction with SERIALIZABLE isolation level
                 transaction = await sequelize.transaction({
-                    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+                    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
                 });
 
                 // Get raid configuration
@@ -595,7 +595,7 @@ module.exports = {
                         userId: attackerId,
                         triggerWord: word.trim().toLowerCase()
                     },
-                    lock: transaction.LOCK.UPDATE
+                    lock: Sequelize.Transaction.LOCK.UPDATE
                 });
 
                 if (!attackerStreak) {
@@ -609,7 +609,7 @@ module.exports = {
                         userId: defenderId,
                         triggerWord: word.trim().toLowerCase()
                     },
-                    lock: transaction.LOCK.UPDATE
+                    lock: Sequelize.Transaction.LOCK.UPDATE
                 });
 
                 if (!defenderStreak) {
