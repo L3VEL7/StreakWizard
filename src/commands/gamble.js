@@ -35,7 +35,7 @@ module.exports = {
                     content: '❌ Gambling is currently disabled in this server.',
                     ephemeral: true
                 });
-            // Return removed - can cause race conditions after await
+                return;
             }
 
             // Check if user has enough streaks
@@ -45,7 +45,7 @@ module.exports = {
                     content: `❌ You don't have enough streaks for "${word}". You have ${currentStreak || 0} streaks.`,
                     ephemeral: true
                 });
-            // Return removed - can cause race conditions after await
+                return;
             }
 
             // Perform the gamble

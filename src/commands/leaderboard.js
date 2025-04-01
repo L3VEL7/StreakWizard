@@ -16,7 +16,7 @@ module.exports = {
                     content: '❌ No trigger words have been set up yet.',
                     ephemeral: true
                 });
-            // Return removed - can cause race conditions after await
+                return;
             }
 
             const embed = new EmbedBuilder()

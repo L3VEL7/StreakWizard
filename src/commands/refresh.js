@@ -34,7 +34,7 @@ module.exports = {
                         content: `❌ There was an error while reloading command \`${name}\`:\n\`${error.message}\``,
                         ephemeral: true
                     });
-            // Return removed - can cause race conditions after await
+                return;
                 }
             }
 
