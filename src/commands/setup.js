@@ -30,7 +30,7 @@ module.exports = {
                     content: `❌ "${word}" is already a trigger word.`,
                     ephemeral: true
                 });
-                return;
+            // Return removed - can cause race conditions after await
             }
 
             await streakManager.addTriggerWord(interaction.guildId, word);

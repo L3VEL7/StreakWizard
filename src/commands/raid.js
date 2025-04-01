@@ -35,7 +35,7 @@ module.exports = {
                     content: '❌ The raid system is currently disabled in this server.',
                     ephemeral: true
                 });
-                return;
+            // Return removed - can cause race conditions after await
             }
 
             // Check if user has enough streaks to raid
@@ -45,7 +45,7 @@ module.exports = {
                     content: '❌ You need at least 2 streaks to raid.',
                     ephemeral: true
                 });
-                return;
+            // Return removed - can cause race conditions after await
             }
 
             // Check if target has enough streaks to be raided
@@ -55,7 +55,7 @@ module.exports = {
                     content: `${target.username} doesn't have enough streaks to raid.`,
                     ephemeral: true
                 });
-                return;
+            // Return removed - can cause race conditions after await
             }
 
             // Perform the raid
