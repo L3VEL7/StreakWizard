@@ -1,11 +1,15 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('togglegambling')
-        .setDescription('Enable or disable gambling in the server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+        .setDescription('Enable or disable the gambling feature')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+        .addBooleanOption(option =>
+            option.setName('enabled')
+                .setDescription('Whether to enable or disable gambling')
+                .setRequired(true)),
 
     async execute(interaction) {
         try {
@@ -13,28 +17,30 @@ module.exports = {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return await interaction.reply({
                     content: '❌ You need administrator permissions to use this command.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
             // Defer reply since this might take a moment
             await interaction.deferReply();
 
-            // Get current gambling status
-            const currentStatus = await streakManager.isGamblingEnabled(interaction.guildId);
-            
-            // Toggle the status
-            await streakManager.setGamblingEnabled(interaction.guildId, !currentStatus);
+            const enabled = interaction.options.getBoolean('enabled');
+
+            // Update gambling status
+            await streakManager.setGamblingEnabled(interaction.guildId, enabled);
+
+            // Get current gambling config
+            const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
 
             // Create response message
-            const newStatus = !currentStatus;
-            const statusEmoji = newStatus ? '🎲' : '🚫';
-            const statusText = newStatus ? 'enabled' : 'disabled';
-            
-            await interaction.editReply({
-                content: `${statusEmoji} Gambling has been ${statusText} in this server.\n` +
-                    `**Note:** Users will need at least 2 streaks to gamble.`
-            });
+            const status = enabled ? 'enabled' : 'disabled';
+            const message = `✅ Gambling feature has been ${status}.\n\n` +
+                `Current gambling settings:\n` +
+                `• Success chance: ${gamblingConfig.successChance}%\n` +
+                `• Minimum streak requirement: ${gamblingConfig.minStreaks}\n` +
+                `• Maximum gamble percentage: ${gamblingConfig.maxGamblePercent}%`;
+
+            await interaction.editReply(message);
 
         } catch (error) {
             console.error('Error in togglegambling command:', error);
@@ -43,12 +49,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         }

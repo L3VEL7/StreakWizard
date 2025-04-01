@@ -1,66 +1,101 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
-        .setDescription('Configure trigger words for streak tracking')
+        .setDescription('Set up a new trigger word for streaks')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(option =>
-            option.setName('words')
-                .setDescription('Comma-separated list of trigger words')
+            option.setName('word')
+                .setDescription('The trigger word to set up (max 100 characters)')
                 .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+        .addStringOption(option =>
+            option.setName('description')
+                .setDescription('A description of what this trigger word is for (max 500 characters)')
+                .setRequired(false)),
 
     async execute(interaction) {
         try {
+            // Check if user has administrator permissions
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({
-                    content: 'You need administrator permissions to use this command.',
-                    ephemeral: true
+                return await interaction.reply({
+                    content: '❌ You need administrator permissions to use this command.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
-            const wordsInput = interaction.options.getString('words');
-            // Split by comma and handle potential whitespace, filter out empty strings
-            const words = wordsInput.split(',')
-                .map(word => word.trim().toLowerCase())
-                .filter(word => word.length > 0 && word.length <= 100); // Add length limit
+            // Defer reply since this might take a moment
+            await interaction.deferReply();
 
-            if (words.length === 0) {
-                return interaction.reply({
-                    content: 'Please provide at least one valid trigger word.',
-                    ephemeral: true
+            const word = interaction.options.getString('word').trim().toLowerCase();
+            const description = (interaction.options.getString('description') || 'No description provided.').trim();
+
+            // Validate input
+            if (!word || word.trim().length === 0) {
+                return await interaction.editReply({
+                    content: '❌ Please provide a valid trigger word.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
-            if (words.length > 50) { // Add reasonable limit to number of trigger words
-                return interaction.reply({
-                    content: 'Too many trigger words. Please limit to 50 words maximum.',
-                    ephemeral: true
+            // Check word length
+            if (word.length > 100) {
+                return await interaction.editReply({
+                    content: '❌ Trigger word must be 100 characters or less.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
-            try {
-                console.log('Setting up trigger words:', words); // Debug log
-                await streakManager.setTriggerWords(interaction.guildId, words);
-
-                await interaction.reply({
-                    content: `✅ Streak tracking configured for the following words:\n${words.map(w => `• ${w}`).join('\n')}`,
-                    ephemeral: true
-                });
-            } catch (error) {
-                console.error('Error setting up trigger words:', error);
-                await interaction.reply({
-                    content: 'An error occurred while setting up trigger words. Please try again.',
-                    ephemeral: true
+            // Check description length
+            if (description.length > 500) {
+                return await interaction.editReply({
+                    content: '❌ Description must be 500 characters or less.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
+
+            // Check if word contains only valid characters
+            if (!/^[a-z0-9\s-]+$/.test(word)) {
+                return await interaction.editReply({
+                    content: '❌ Trigger word can only contain letters, numbers, spaces, and hyphens.',
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            }
+
+            // Check if word already exists
+            if (await streakManager.isValidTriggerWord(interaction.guildId, word)) {
+                return await interaction.editReply({
+                    content: '❌ This trigger word already exists in this server.',
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            }
+
+            // Add the trigger word
+            await streakManager.addTriggerWord(interaction.guildId, word, description);
+
+            // Create response message
+            const message = `✅ Successfully set up the trigger word "${word}"!\n` +
+                `Description: ${description}\n\n` +
+                `Users can now start getting streaks by using this word.`;
+
+            await interaction.editReply(message);
+
         } catch (error) {
-            console.error('Unexpected error in setup command:', error);
-            await interaction.reply({
-                content: 'An unexpected error occurred. Please try again.',
-                ephemeral: true
-            });
+            console.error('Error in setup command:', error);
+            const errorMessage = error.message || 'An error occurred while setting up the trigger word.';
+            
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    content: `❌ ${errorMessage}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${errorMessage}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            }
         }
-    },
+    }
 };

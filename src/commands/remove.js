@@ -1,58 +1,71 @@
-
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('remove')
-        .setDescription('Remove trigger words from streak tracking')
+        .setDescription('Remove a trigger word from streak tracking')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(option =>
-            option.setName('words')
-                .setDescription('Comma-separated list of trigger words to remove')
-                .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+            option.setName('word')
+                .setDescription('The trigger word to remove')
+                .setRequired(true)),
 
     async execute(interaction) {
         try {
+            // Check if user has administrator permissions
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({
-                    content: 'You need administrator permissions to use this command.',
-                    ephemeral: true
+                return await interaction.reply({
+                    content: '❌ You need administrator permissions to use this command.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
-            const wordsInput = interaction.options.getString('words');
-            const words = wordsInput.split(',')
-                .map(word => word.trim())
-                .filter(word => word.length > 0);
+            // Defer reply since this might take a moment
+            await interaction.deferReply();
 
-            if (words.length === 0) {
-                return interaction.reply({
-                    content: 'Please provide at least one valid trigger word to remove.',
-                    ephemeral: true
+            const word = interaction.options.getString('word').trim().toLowerCase();
+
+            // Validate input
+            if (!word || word.trim().length === 0) {
+                return await interaction.editReply({
+                    content: '❌ Please provide a valid trigger word.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
-            try {
-                const updatedWords = await streakManager.removeTriggerWords(interaction.guildId, words);
-                
-                await interaction.reply({
-                    content: `✅ Removed the following trigger words:\n${words.map(w => `• ${w}`).join('\n')}\n\nRemaining trigger words:\n${updatedWords.map(w => `• ${w}`).join('\n')}`,
-                    ephemeral: true
-                });
-            } catch (error) {
-                console.error('Error removing trigger words:', error);
-                await interaction.reply({
-                    content: 'An error occurred while removing trigger words. Please try again.',
-                    ephemeral: true
+            // Check if word exists
+            if (!await streakManager.isValidTriggerWord(interaction.guildId, word)) {
+                return await interaction.editReply({
+                    content: '❌ This trigger word does not exist in this server.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
+
+            // Remove the trigger word
+            await streakManager.removeTriggerWord(interaction.guildId, word);
+
+            // Create response message
+            const message = `✅ Successfully removed the trigger word "${word}"!\n\n` +
+                `Note: All streaks associated with this word have been preserved.`;
+
+            await interaction.editReply(message);
+
         } catch (error) {
-            console.error('Unexpected error in remove command:', error);
-            await interaction.reply({
-                content: 'An unexpected error occurred. Please try again.',
-                ephemeral: true
-            });
+            console.error('Error in remove command:', error);
+            const errorMessage = error.message || 'An error occurred while removing the trigger word.';
+            
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    content: `❌ ${errorMessage}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${errorMessage}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            }
         }
-    },
+    }
 };

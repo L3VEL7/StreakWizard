@@ -1,55 +1,48 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('restart')
-        .setDescription('Restart the bot (Admin only)')
+        .setDescription('Restart the bot')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
         try {
-            // Defer the reply since this operation might take a moment
-            await interaction.deferReply({ ephemeral: true });
-
-            // Check if the user has administrator permissions
+            // Check if user has administrator permissions
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                await interaction.editReply({
-                    content: '❌ You do not have permission to use this command.',
-                    ephemeral: true
+                return await interaction.reply({
+                    content: '❌ You need administrator permissions to use this command.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
-                return;
             }
 
-            // Send confirmation message
-            await interaction.editReply({
-                content: '🔄 Restarting the bot...\nThe bot will be back online in a few moments.',
-                ephemeral: true
-            });
+            // Defer reply since this might take a moment
+            await interaction.deferReply();
 
-            // Log the restart with detailed information
-            console.log('=== Bot Restart Initiated ===');
-            console.log(`Time: ${new Date().toISOString()}`);
-            console.log(`Initiator: ${interaction.user.tag} (${interaction.user.id})`);
-            console.log(`Guild: ${interaction.guild.name} (${interaction.guild.id})`);
-            console.log(`Channel: ${interaction.channel.name} (${interaction.channel.id})`);
-            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-            console.log(`Platform: Railway.app`);
-            console.log('=============================');
+            // Create response message
+            const message = '🔄 Restarting the bot...\n' +
+                'Please wait a moment while the bot reconnects.';
 
-            // Wait a moment to ensure the message is sent and logs are written
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await interaction.editReply(message);
 
-            // Exit the process with a custom exit code to indicate a restart
-            process.exit(2);
+            // Exit the process to trigger a restart
+            process.exit(0);
+
         } catch (error) {
             console.error('Error in restart command:', error);
-            try {
+            const errorMessage = error.message || 'An error occurred while restarting the bot.';
+            
+            if (interaction.deferred) {
                 await interaction.editReply({
-                    content: '❌ An error occurred while trying to restart the bot.',
-                    ephemeral: true
+                    content: `❌ ${errorMessage}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
-            } catch (replyError) {
-                console.error('Failed to send error message:', replyError);
+            } else {
+                await interaction.reply({
+                    content: `❌ ${errorMessage}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
             }
         }
     }

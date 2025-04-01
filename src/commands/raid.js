@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -21,21 +21,21 @@ module.exports = {
             if (!raidEnabled) {
                 return await interaction.reply({
                     content: '❌ Raid feature is not enabled in this server. Ask an administrator to enable it.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
             // Defer reply since this might take a moment
             await interaction.deferReply();
 
-            const word = interaction.options.getString('word');
+            const word = interaction.options.getString('word').trim().toLowerCase();
             const target = interaction.options.getUser('target');
 
             // Enhanced input validation
             if (!word || word.trim().length === 0) {
                 return await interaction.editReply({
                     content: '❌ Please provide a valid trigger word.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -43,7 +43,7 @@ module.exports = {
             if (target.id === interaction.user.id) {
                 return await interaction.editReply({
                     content: '❌ You cannot raid yourself!',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -51,7 +51,7 @@ module.exports = {
             if (target.bot) {
                 return await interaction.editReply({
                     content: '❌ You cannot raid bots!',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -59,7 +59,7 @@ module.exports = {
             if (!await streakManager.isValidTriggerWord(interaction.guildId, word)) {
                 return await interaction.editReply({
                     content: '❌ Invalid trigger word. Please use a word that is set up for streaks in this server.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -73,14 +73,14 @@ module.exports = {
             if (!userStreak || userStreak.count < 2) {
                 return await interaction.editReply({
                     content: '❌ You need at least 2 streaks to raid.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
             if (!targetStreak || targetStreak.count < 2) {
                 return await interaction.editReply({
                     content: '❌ Target has no streak to raid.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -114,12 +114,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         }

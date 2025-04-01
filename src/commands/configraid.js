@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 // Rate limiting map
@@ -44,7 +44,7 @@ module.exports = {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return await interaction.reply({
                     content: '❌ You need administrator permissions to use this command.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -57,7 +57,7 @@ module.exports = {
                 const remainingTime = Math.ceil((cooldownPeriod - (now - lastChange)) / 1000 / 60);
                 return await interaction.reply({
                     content: `❌ Please wait ${remainingTime} minute${remainingTime !== 1 ? 's' : ''} before changing raid configuration again.`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -118,12 +118,12 @@ module.exports = {
             if (interaction.deferred) {
                 await interaction.editReply({
                     content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } else {
                 await interaction.reply({
                     content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         }
