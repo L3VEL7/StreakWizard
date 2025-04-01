@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -16,11 +16,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             const commandName = interaction.options.getString('command').toLowerCase();
@@ -29,7 +29,7 @@ module.exports = {
             if (!command) {
                 await interaction.editReply({
                     content: `❌ Command \`${commandName}\` not found.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
                 return;
             }
@@ -42,13 +42,13 @@ module.exports = {
 
             await interaction.editReply({
                 content: `✅ Command \`${commandName}\` has been reloaded!`,
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error reloading command:', error);
             await interaction.editReply({
                 content: `❌ There was an error while reloading command \`${commandName}\`:\n\`${error.message}\``,
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },

@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, PermissionFlagsBits, InteractionFlags } = require('discord.js');
 const { config } = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -118,6 +118,12 @@ client.once('ready', async () => {
     }
 });
 
+// Add this helper function before the error handling code
+function truncateMessage(message, maxLength = 2000) {
+    if (message.length <= maxLength) return message;
+    return message.substring(0, maxLength - 3) + '...';
+}
+
 // Handle interactions with improved error handling
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
@@ -148,13 +154,13 @@ client.on('interactionCreate', async interaction => {
         try {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({
-                    content: errorMessage,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    content: truncateMessage(errorMessage),
+                    flags: [InteractionFlags.Ephemeral]
                 });
             } else {
                 await interaction.reply({
-                    content: errorMessage,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    content: truncateMessage(errorMessage),
+                    flags: [InteractionFlags.Ephemeral]
                 });
             }
         } catch (replyError) {

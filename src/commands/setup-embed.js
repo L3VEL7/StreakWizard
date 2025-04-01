@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, InteractionFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -11,11 +11,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             // Get current configurations
@@ -67,7 +67,7 @@ module.exports = {
             const message = await interaction.editReply({
                 embeds: [embed],
                 components: [row],
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
 
             // Create a collector for the dropdown menu
@@ -78,8 +78,7 @@ module.exports = {
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) {
                     return await i.reply({
-                        content: '❌ Only the command user can use this menu.',
-                        flags: [InteractionResponseFlags.Ephemeral]
+                        content: '❌ Only the command user can use this menu.'
                     });
                 }
 
@@ -98,8 +97,7 @@ module.exports = {
                 } catch (error) {
                     console.error('Error handling configuration:', error);
                     await i.update({
-                        content: '❌ An error occurred while processing your selection.',
-                        flags: [InteractionResponseFlags.Ephemeral]
+                        content: '❌ An error occurred while processing your selection.'
                     });
                 }
             });
@@ -107,15 +105,14 @@ module.exports = {
             collector.on('end', async () => {
                 await interaction.editReply({
                     content: '⏰ Configuration panel timed out. Use /setup-embed to open a new panel.',
-                    components: [],
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    components: []
                 });
             });
         } catch (error) {
             console.error('Error creating setup panel:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while creating the configuration panel.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },
@@ -163,7 +160,7 @@ async function handleCoreConfig(interaction, originalInteraction) {
     await interaction.update({
         embeds: [embed],
         components: [row],
-        flags: [InteractionResponseFlags.Ephemeral]
+        flags: [InteractionFlags.Ephemeral]
     });
 }
 
@@ -224,7 +221,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
     await interaction.update({
         embeds: [embed],
         components: [row],
-        flags: [InteractionResponseFlags.Ephemeral]
+        flags: [InteractionFlags.Ephemeral]
     });
 }
 
@@ -271,6 +268,6 @@ async function handleGamblingConfig(interaction, originalInteraction) {
     await interaction.update({
         embeds: [embed],
         components: [row],
-        flags: [InteractionResponseFlags.Ephemeral]
+        flags: [InteractionFlags.Ephemeral]
     });
 } 

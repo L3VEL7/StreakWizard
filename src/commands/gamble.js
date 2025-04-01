@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, InteractionFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -21,11 +21,11 @@ module.exports = {
         if (amount <= 0) {
             return await interaction.reply({
                 content: '❌ Please enter a positive number of streaks to gamble.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             // Check if gambling is enabled
@@ -33,7 +33,7 @@ module.exports = {
             if (!isGamblingEnabled) {
                 await interaction.editReply({
                     content: '❌ Gambling is currently disabled in this server.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
                 return;
             }
@@ -43,7 +43,7 @@ module.exports = {
             if (!currentStreak || currentStreak < amount) {
                 await interaction.editReply({
                     content: `❌ You don't have enough streaks for "${word}". You have ${currentStreak || 0} streaks.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
                 return;
             }
@@ -54,19 +54,19 @@ module.exports = {
             if (result.won) {
                 await interaction.editReply({
                     content: `🎉 Congratulations! You won ${result.wonAmount} streaks!\nYour new streak for "${word}" is ${result.newStreak}!`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
             } else {
                 await interaction.editReply({
                     content: `😢 Sorry, you lost ${amount} streaks.\nYour new streak for "${word}" is ${result.newStreak}.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
             }
         } catch (error) {
             console.error('Error in gamble command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while processing your gamble.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },
