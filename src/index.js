@@ -194,6 +194,33 @@ client.once('ready', async () => {
                 const BATCH_SIZE = 1; // Process one guild at a time
                 let processedGuilds = 0;
                 
+                // Try registering commands one by one to identify problematic commands
+                const tryIndividualCommandRegistration = async (guild) => {
+                    console.log(`🔍 Testing individual command registration for guild: ${guild.name} (${guild.id})`);
+                    
+                    // Register each command individually to identify problematic ones
+                    for (let i = 0; i < commands.length; i++) {
+                        const command = commands[i];
+                        console.log(`[${i+1}/${commands.length}] Attempting to register command: ${command.name}`);
+                        
+                        try {
+                            await rest.put(
+                                Routes.applicationGuildCommands(client.user.id, guild.id),
+                                { body: [command] }
+                            );
+                            console.log(`✅ Command "${command.name}" registered successfully`);
+                        } catch (cmdError) {
+                            console.error(`❌ Failed to register command "${command.name}":`, cmdError.message);
+                            console.log(`Command data:`, JSON.stringify(command));
+                        }
+                        
+                        // Small delay between commands to avoid rate limiting
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    
+                    console.log(`🔍 Individual command testing completed for guild: ${guild.name}`);
+                };
+                
                 for (let i = 0; i < guildArray.length; i += BATCH_SIZE) {
                     // Take a slice of guilds to process in this batch
                     const batch = guildArray.slice(i, i + BATCH_SIZE);
@@ -203,12 +230,30 @@ client.once('ready', async () => {
                     const batchPromises = batch.map(async (guild) => {
                         try {
                             console.log(`[${processedGuilds + 1}/${guildArray.length}] Registering commands to guild: ${guild.name} (${guild.id})`);
-                            await rest.put(
-                                Routes.applicationGuildCommands(client.user.id, guild.id),
-                                { body: commands }
-                            );
-                            console.log(`✅ Commands registered to guild: ${guild.name} (${guild.id})`);
-                            return true; // Registration successful
+                            
+                            try {
+                                // First try registering all commands at once with a timeout
+                                const registerPromise = rest.put(
+                                    Routes.applicationGuildCommands(client.user.id, guild.id),
+                                    { body: commands }
+                                );
+                                
+                                // Add a timeout for this specific guild
+                                const timeoutPromise = new Promise((_, reject) => 
+                                    setTimeout(() => reject(new Error(`Registration timed out for guild ${guild.name}`)), 30000)
+                                );
+                                
+                                await Promise.race([registerPromise, timeoutPromise]);
+                                console.log(`✅ All commands registered to guild: ${guild.name} (${guild.id})`);
+                            } catch (guildError) {
+                                console.error(`❌ Bulk registration failed for guild ${guild.name}:`, guildError.message);
+                                console.log(`Falling back to individual command registration...`);
+                                
+                                // If bulk registration fails, try registering commands one by one
+                                await tryIndividualCommandRegistration(guild);
+                            }
+                            
+                            return true; // Registration attempted
                         } catch (error) {
                             console.error(`❌ Error registering commands to guild ${guild.name} (${guild.id}):`, error.message);
                             return false; // Registration failed
@@ -237,7 +282,7 @@ client.once('ready', async () => {
             // Use a Promise.race with a timeout to prevent getting stuck
             try {
                 const timeout = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Command registration timed out')), 240000) // Increase to 4 minutes
+                    setTimeout(() => reject(new Error('Command registration timed out')), 240000)
                 );
                 
                 console.log('Starting command registration with 4-minute timeout...');
