@@ -963,40 +963,27 @@ module.exports = {
 
     // New function to get leaderboard
     async getLeaderboard(guildId, word) {
-        const streaks = await Streak.findAll({
-            where: {
-                guildId,
-                triggerWord: word.trim().toLowerCase()
-            },
-            order: [['count', 'DESC']],
-            limit: 100 // Reasonable limit for leaderboard
-        });
+        try {
+            const streaks = await Streak.findAll({
+                where: {
+                    guildId,
+                    triggerWord: word.trim().toLowerCase()
+                },
+                order: [['count', 'DESC']],
+                limit: 10 // Immediately limit to top 10 for efficiency
+            });
 
-        // Format the results
-        const results = [];
-        for (const streak of streaks) {
-            try {
-                // For simplicity, we'll return the userId and let the command handle username fetching
-                // since we don't have direct access to the Discord client here
-                results.push({
-                    userId: streak.userId,
-                    username: streak.userId, // We'll fetch the actual username in the command
-                    count: streak.count,
-                    streakStreak: streak.streakStreak || 0
-                });
-            } catch (err) {
-                console.error('Error getting username for leaderboard:', err);
-                // Still include the entry, just with the ID as fallback
-                results.push({
-                    userId: streak.userId,
-                    username: streak.userId,
-                    count: streak.count,
-                    streakStreak: streak.streakStreak || 0
-                });
-            }
+            // Format the results
+            return streaks.map(streak => ({
+                userId: streak.userId,
+                username: streak.userId, // Just use userId as username
+                count: streak.count,
+                streakStreak: streak.streakStreak || 0
+            }));
+        } catch (error) {
+            console.error('Error getting leaderboard:', error);
+            return []; // Return empty array on error
         }
-
-        return results;
     },
 
     // New function to get statistics for a trigger word

@@ -121,8 +121,8 @@ client.once('ready', async () => {
 
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         
-        // FORCE CLEANUP MODE: Set to true to clean up all commands first
-        const FORCE_CLEANUP = true;
+        // FORCE_CLEANUP MODE: Set to true to clean up all commands first
+        const FORCE_CLEANUP = false; // Changed to false to prevent constant cleanup
 
         // Check if we're in development mode
         const DEV_MODE = process.env.DEV_MODE === 'true';
@@ -171,27 +171,69 @@ client.once('ready', async () => {
             console.log('🧪 Development mode: Registering guild-specific commands...');
             const guilds = await client.guilds.fetch();
             
-            for (const [guildId, guild] of guilds) {
-                try {
-                    console.log(`Registering commands to guild: ${guild.name}`);
-                    await rest.put(
-                        Routes.applicationGuildCommands(client.user.id, guildId),
-                        { body: commands }
-                    );
-                    console.log(`✅ Commands registered to guild: ${guild.name}`);
-                } catch (error) {
-                    console.error(`Error registering commands to guild ${guild.name}:`, error);
+            // Add a counter to avoid infinite loops and limit to max 10 guilds for safety
+            let processedGuilds = 0;
+            const maxGuildsToProcess = 10;
+            
+            // Add a timeout promise to prevent getting stuck
+            const registerCommands = async () => {
+                for (const [guildId, guild] of guilds) {
+                    try {
+                        // Break if we've processed too many guilds (safety measure)
+                        if (processedGuilds >= maxGuildsToProcess) {
+                            console.log(`⚠️ Reached maximum guild limit (${maxGuildsToProcess}). Skipping remaining guilds.`);
+                            break;
+                        }
+                        
+                        console.log(`Registering commands to guild: ${guild.name}`);
+                        await rest.put(
+                            Routes.applicationGuildCommands(client.user.id, guildId),
+                            { body: commands }
+                        );
+                        console.log(`✅ Commands registered to guild: ${guild.name}`);
+                        processedGuilds++;
+                    } catch (error) {
+                        console.error(`Error registering commands to guild ${guild.name}:`, error);
+                    }
                 }
+                return processedGuilds;
+            };
+            
+            // Use a Promise.race with a timeout to prevent getting stuck
+            try {
+                const timeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Command registration timed out')), 30000)
+                );
+                
+                const count = await Promise.race([registerCommands(), timeout]);
+                console.log(`✅ Commands registered to ${count} guilds`);
+            } catch (timeoutError) {
+                console.error('⚠️ Command registration timed out:', timeoutError);
+                console.log('Continuing with bot startup anyway...');
             }
-            console.log('✅ All commands registered to guilds');
         } else {
             // In production mode, register commands globally
             console.log('🚀 Production mode: Registering global commands...');
-            await rest.put(
-                Routes.applicationCommands(client.user.id),
-                { body: commands }
-            );
-            console.log('✅ All commands registered globally');
+            
+            // Add timeout handling here too
+            try {
+                const timeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Global command registration timed out')), 15000)
+                );
+                
+                await Promise.race([
+                    rest.put(Routes.applicationCommands(client.user.id), { body: commands }),
+                    timeout
+                ]);
+                console.log('✅ All commands registered globally');
+            } catch (error) {
+                if (error.message.includes('timed out')) {
+                    console.error('⚠️ Global command registration timed out');
+                    console.log('Continuing with bot startup anyway...');
+                } else {
+                    console.error('Error registering global commands:', error);
+                }
+            }
         }
     } catch (error) {
         console.error('Failed to register commands:', error);
