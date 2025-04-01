@@ -106,7 +106,7 @@ module.exports = {
                 await interaction.editReply({
                     content: '⏰ Configuration panel timed out. Use /setup-embed to open a new panel.',
                     components: []
-                });
+                , ephemeral: true});
             });
         } catch (error) {
             console.error('Error creating setup panel:', error);
