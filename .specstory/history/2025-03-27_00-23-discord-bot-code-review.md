@@ -16448,6 +16448,213 @@ Let me fix these issues:
 
 _****_
 
+```diff
+          .addStringOption(option =>
+              option.setName('word')
+-                 .setDescription('The trigger word to set up')
++                 .setDescription('The trigger word to set up (max 100 characters)')
+                  .setRequired(true))
+          .addStringOption(option =>
+              option.setName('description')
+-                 .setDescription('A description of what this trigger word is for')
++                 .setDescription('A description of what this trigger word is for (max 500 characters)')
+                  .setRequired(false)),
+  
+  
+              const word = interaction.options.getString('word').trim().toLowerCase();
+-             const description = interaction.options.getString('description') || 'No description provided.';
++             const description = (interaction.options.getString('description') || 'No description provided.').trim();
+  
+              // Validate input
+                  });
+              }
++ 
++             // Check word length
++             if (word.length > 100) {
++                 return await interaction.editReply({
++                     content: '❌ Trigger word must be 100 characters or less.',
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
++             }
++ 
++             // Check description length
++             if (description.length > 500) {
++                 return await interaction.editReply({
++                     content: '❌ Description must be 500 characters or less.',
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
++             }
++ 
++             // Check if word contains only valid characters
++             if (!/^[a-z0-9\s-]+$/.test(word)) {
++                 return await interaction.editReply({
++                     content: '❌ Trigger word can only contain letters, numbers, spaces, and hyphens.',
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
++             }
+  
+              // Check if word already exists
+```
+
+---
+
+_**User**_
+
+you stuck?
+
+---
+
+_**Assistant**_
+
+No, I'm not stuck. Let me continue with fixing the remaining issues in the other commands:
+
+2. Let's update `toggle_streakstreak.js` to add a confirmation step:
+
+
+---
+
+_****_
+
+```diff
+              const enabled = interaction.options.getBoolean('enabled');
+  
++             // Get current status
++             const currentStatus = await streakManager.isStreakStreakEnabled(interaction.guildId);
++ 
++             // If disabling, show warning
++             if (!enabled && currentStatus) {
++                 const warningMessage = '⚠️ **Warning:** Disabling streak streak tracking will:\n' +
++                     '• Stop users from getting additional streaks for maintaining daily streaks\n' +
++                     '• Not affect existing streak streak counts\n' +
++                     '• Allow you to re-enable it later\n\n' +
++                     'Are you sure you want to disable streak streak tracking?';
++ 
++                 await interaction.editReply({
++                     content: warningMessage,
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
++ 
++                 // Wait for confirmation
++                 const filter = i => i.user.id === interaction.user.id;
++                 try {
++                     const confirmation = await interaction.channel.awaitMessageComponent({
++                         filter,
++                         time: 30000,
++                         componentType: 2 // Button component
++                     });
++ 
++                     if (confirmation.customId === 'confirm') {
++                         // Update streak streak status
++                         await streakManager.setStreakStreakEnabled(interaction.guildId, enabled);
++ 
++                         // Create success message
++                         const message = `✅ Streak streak tracking has been disabled.\n\n` +
++                             `Note: Existing streak streak counts have been preserved.`;
++ 
++                         await interaction.editReply(message);
++                     } else {
++                         await interaction.editReply({
++                             content: '❌ Operation cancelled.',
++                             flags: [InteractionResponseFlags.Ephemeral]
++                         });
++                     }
++                 } catch (error) {
++                     await interaction.editReply({
++                         content: '❌ No confirmation received. Operation cancelled.',
++                         flags: [InteractionResponseFlags.Ephemeral]
++                     });
++                 }
++             } else {
+                  // Update streak streak status
+                  await streakManager.setStreakStreakEnabled(interaction.guildId, enabled);
+  
+                  await interaction.editReply(message);
++             }
+  
+          } catch (error) {
+```
+
+---
+
+_****_
+
+3. Let's update `remove.js` to add a confirmation step and data preservation warning:
+
+
+
+---
+
+_****_
+
+```diff
+              }
+  
++             // Get word stats before removal
++             const wordStats = await streakManager.getWordStats(interaction.guildId, word);
++             
++             // Show warning message
++             const warningMessage = '⚠️ **Warning:** Removing this trigger word will:\n' +
++                 `• Remove "${word}" from the list of valid trigger words\n` +
++                 `• Preserve all existing streak data\n` +
++                 `• Users will no longer be able to get streaks for this word\n\n` +
++                 `Current stats for "${word}":\n` +
++                 `• Active users: ${wordStats.activeUsers}\n` +
++                 `• Total streaks: ${wordStats.totalStreaks}\n\n` +
++                 'Are you sure you want to remove this trigger word?';
++ 
++             await interaction.editReply({
++                 content: warningMessage,
++                 flags: [InteractionResponseFlags.Ephemeral]
++             });
++ 
++             // Wait for confirmation
++             const filter = i => i.user.id === interaction.user.id;
++             try {
++                 const confirmation = await interaction.channel.awaitMessageComponent({
++                     filter,
++                     time: 30000,
++                     componentType: 2 // Button component
++                 });
++ 
++                 if (confirmation.customId === 'confirm') {
+                      // Remove the trigger word
+                      await streakManager.removeTriggerWord(interaction.guildId, word);
+  
+-             // Create response message
++                     // Create success message
+                      const message = `✅ Successfully removed the trigger word "${word}"!\n\n` +
+-                 `Note: All streaks associated with this word have been preserved.`;
++                         `Note: All streak data has been preserved. Users will no longer be able to get streaks for this word.`;
+  
+                      await interaction.editReply(message);
++                 } else {
++                     await interaction.editReply({
++                         content: '❌ Operation cancelled.',
++                         flags: [InteractionResponseFlags.Ephemeral]
++                     });
++                 }
++             } catch (error) {
++                 await interaction.editReply({
++                     content: '❌ No confirmation received. Operation cancelled.',
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
++             }
+  
+          } catch (error) {
+```
+
+---
+
+_****_
+
+4. Let's update `reset.js` to add confirmation and logging:
+
+
+
+---
+
+_****_
+
 Cancelled
 
 ---

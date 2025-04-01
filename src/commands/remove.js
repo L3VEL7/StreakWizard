@@ -42,14 +42,54 @@ module.exports = {
                 });
             }
 
-            // Remove the trigger word
-            await streakManager.removeTriggerWord(interaction.guildId, word);
+            // Get word stats before removal
+            const wordStats = await streakManager.getWordStats(interaction.guildId, word);
+            
+            // Show warning message
+            const warningMessage = '⚠️ **Warning:** Removing this trigger word will:\n' +
+                `• Remove "${word}" from the list of valid trigger words\n` +
+                `• Preserve all existing streak data\n` +
+                `• Users will no longer be able to get streaks for this word\n\n` +
+                `Current stats for "${word}":\n` +
+                `• Active users: ${wordStats.activeUsers}\n` +
+                `• Total streaks: ${wordStats.totalStreaks}\n\n` +
+                'Are you sure you want to remove this trigger word?';
 
-            // Create response message
-            const message = `✅ Successfully removed the trigger word "${word}"!\n\n` +
-                `Note: All streaks associated with this word have been preserved.`;
+            await interaction.editReply({
+                content: warningMessage,
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
 
-            await interaction.editReply(message);
+            // Wait for confirmation
+            const filter = i => i.user.id === interaction.user.id;
+            try {
+                const confirmation = await interaction.channel.awaitMessageComponent({
+                    filter,
+                    time: 30000,
+                    componentType: 2 // Button component
+                });
+
+                if (confirmation.customId === 'confirm') {
+                    // Remove the trigger word
+                    await streakManager.removeTriggerWord(interaction.guildId, word);
+
+                    // Create success message
+                    const message = `✅ Successfully removed the trigger word "${word}"!\n\n` +
+                        `Note: All streak data has been preserved. Users will no longer be able to get streaks for this word.`;
+
+                    await interaction.editReply(message);
+                } else {
+                    await interaction.editReply({
+                        content: '❌ Operation cancelled.',
+                        flags: [InteractionResponseFlags.Ephemeral]
+                    });
+                }
+            } catch (error) {
+                await interaction.editReply({
+                    content: '❌ No confirmation received. Operation cancelled.',
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            }
 
         } catch (error) {
             console.error('Error in remove command:', error);
