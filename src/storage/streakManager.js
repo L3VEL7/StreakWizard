@@ -746,5 +746,139 @@ module.exports = {
                 throw new Error(`Failed to complete raid after ${MAX_RETRIES} attempts: ${error.message}`);
             }
         }
+    },
+
+    // New function to set streak streak enabled status
+    async setStreakStreakEnabled(guildId, enabled) {
+        await GuildConfig.upsert({
+            guildId,
+            streakStreakEnabled: enabled
+        });
+    },
+
+    // New function to get leaderboard
+    async getLeaderboard(guildId, word) {
+        const streaks = await Streak.findAll({
+            where: {
+                guildId,
+                triggerWord: word.trim().toLowerCase()
+            },
+            order: [['count', 'DESC']],
+            limit: 100 // Reasonable limit for leaderboard
+        });
+
+        // Format the results
+        const results = [];
+        for (const streak of streaks) {
+            try {
+                // Get username from Discord if possible (may not be available in all contexts)
+                let username = streak.userId;
+                results.push({
+                    userId: streak.userId,
+                    username: username,
+                    count: streak.count,
+                    streakStreak: streak.streakStreak || 0
+                });
+            } catch (err) {
+                console.error('Error getting username for leaderboard:', err);
+                // Still include the entry, just with the ID as fallback
+                results.push({
+                    userId: streak.userId,
+                    username: streak.userId,
+                    count: streak.count,
+                    streakStreak: streak.streakStreak || 0
+                });
+            }
+        }
+
+        return results;
+    },
+
+    // New function to get statistics for a trigger word
+    async getStats(guildId, word) {
+        const wordStats = await Streak.findAll({
+            where: {
+                guildId,
+                triggerWord: word.trim().toLowerCase()
+            },
+            attributes: [
+                [sequelize.fn('COUNT', sequelize.col('userId')), 'users'],
+                [sequelize.fn('SUM', sequelize.col('count')), 'total'],
+                [sequelize.fn('AVG', sequelize.col('count')), 'average'],
+                [sequelize.fn('MAX', sequelize.col('count')), 'max']
+            ]
+        });
+
+        // Format the result
+        if (wordStats && wordStats.length > 0) {
+            return {
+                users: parseInt(wordStats[0].get('users')) || 0,
+                total: parseInt(wordStats[0].get('total')) || 0,
+                average: parseFloat(wordStats[0].get('average')) || 0,
+                max: parseInt(wordStats[0].get('max')) || 0
+            };
+        }
+
+        return {
+            users: 0,
+            total: 0,
+            average: 0,
+            max: 0
+        };
+    },
+
+    // New function to reset a specific user's streak for a word
+    async resetStreak(guildId, userId, word) {
+        await Streak.destroy({
+            where: {
+                guildId,
+                userId,
+                triggerWord: word.trim().toLowerCase()
+            }
+        });
+    },
+
+    // New function to add a trigger word (wrapper for setTriggerWords)
+    async addTriggerWord(guildId, word) {
+        const currentWords = await this.getTriggerWords(guildId);
+        if (currentWords.includes(word.trim().toLowerCase())) {
+            return; // Word already exists
+        }
+        return this.setTriggerWords(guildId, [...currentWords, word]);
+    },
+
+    // New function to remove a specific trigger word
+    async removeTriggerWord(guildId, word) {
+        const currentWords = await this.getTriggerWords(guildId);
+        const wordToRemove = word.trim().toLowerCase();
+        const updatedWords = currentWords.filter(w => w !== wordToRemove);
+        return this.setTriggerWords(guildId, updatedWords);
+    },
+
+    // New function to get gambling configuration
+    async getGamblingConfig(guildId) {
+        const config = await GuildConfig.findByPk(guildId);
+        return {
+            enabled: config ? config.gamblingEnabled : false,
+            successChance: config ? config.gamblingSuccessChance : 50,
+            maxGamblePercent: config ? config.gamblingMaxPercent : 50,
+            minStreaks: config ? config.gamblingMinStreaks : 10
+        };
+    },
+
+    // New function to update gambling configuration
+    async updateGamblingConfig(guildId, config) {
+        await GuildConfig.upsert({
+            guildId,
+            gamblingEnabled: config.enabled,
+            gamblingSuccessChance: config.successChance,
+            gamblingMaxPercent: config.maxGamblePercent,
+            gamblingMinStreaks: config.minStreaks
+        });
+    },
+
+    // New function to update raid configuration (alias for setRaidConfig)
+    async updateRaidConfig(guildId, config) {
+        return this.setRaidConfig(guildId, config);
     }
 };
