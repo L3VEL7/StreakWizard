@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -22,7 +22,7 @@ module.exports = {
             if (!streakManager.isValidTriggerWord(guildId, word)) {
                 return interaction.editReply({
                     content: 'Invalid trigger word. Use /setup to configure valid trigger words.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -63,9 +63,15 @@ module.exports = {
                 : 'There was an error displaying the leaderboard. Please try again later.';
             
             if (interaction.replied || interaction.deferred) {
-                await interaction.editReply({ content: errorMessage, ephemeral: true });
+                await interaction.editReply({
+                    content: errorMessage,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
             } else {
-                await interaction.reply({ content: errorMessage, ephemeral: true });
+                await interaction.reply({
+                    content: '❌ An error occurred while fetching the leaderboard.',
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
             }
         }
     },

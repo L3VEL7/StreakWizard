@@ -102,10 +102,28 @@ A Discord bot that tracks user streaks and provides various streak-related featu
 - Minimum streak requirement (default: 2)
 
 ### Raid Settings
-- Maximum steal percentage (default: 50%)
-- Risk percentage (default: 25%)
-- Success chance (default: 50%)
+- Maximum steal percentage (default: 20%)
+- Risk percentage (default: 30%)
+- Success chance (default: 40%)
 - Cooldown period (default: 24 hours)
+- Minimum streak requirement: 2 streaks
+- 5-minute cooldown between configuration changes
+- Disabled by default for new servers
+
+### Raid Configuration Command
+Use `/configraid` to configure raid settings:
+- `enabled`: Enable/disable the raid feature
+- `maxsteal`: Maximum percentage of streaks that can be stolen (1-100%)
+- `risk`: Percentage of streaks risked when raid fails (1-100%)
+- `successchance`: Chance of successful raid (1-100%)
+- `cooldown`: Hours between raids (1-168)
+
+Example configurations:
+```
+/configraid enabled:true
+/configraid enabled:true maxsteal:25 risk:35 successchance:45 cooldown:48
+/configraid enabled:false
+```
 
 ## Support
 

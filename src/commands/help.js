@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -56,6 +56,9 @@ module.exports = {
             )
             .setFooter({ text: 'Start tracking your streaks today!' });
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({
+            embeds: [embed],
+            flags: [InteractionResponseFlags.Ephemeral]
+        });
     }
 }

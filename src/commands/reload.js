@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,13 +10,13 @@ module.exports = {
 
     async execute(interaction) {
         try {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
             // Check if the user has administrator permissions
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 await interaction.editReply({
-                    content: '❌ You do not have permission to use this command.',
-                    ephemeral: true
+                    content: '❌ You need administrator permissions to use this command.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
                 return;
             }
@@ -65,21 +65,21 @@ module.exports = {
                 await interaction.client.application.commands.set(commands);
                 await interaction.editReply({
                     content: '✅ Commands reloaded successfully! The new commands should appear shortly.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } catch (error) {
                 console.error('Error registering reloaded commands:', error);
                 await interaction.editReply({
                     content: '❌ Failed to register reloaded commands. Please try using `/restart` instead.',
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         } catch (error) {
             console.error('Error in reload command:', error);
             try {
                 await interaction.editReply({
-                    content: '❌ An error occurred while trying to reload the commands.',
-                    ephemeral: true
+                    content: `❌ Error reloading command: ${error.message}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } catch (replyError) {
                 console.error('Failed to send error message:', replyError);

@@ -26,7 +26,7 @@ module.exports = {
             }
 
             // Defer reply since this might take a moment
-            await interaction.deferReply();
+            await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
             const targetUser = interaction.options.getUser('user');
             const word = interaction.options.getString('word')?.trim().toLowerCase();

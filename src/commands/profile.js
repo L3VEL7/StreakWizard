@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -22,7 +22,7 @@ module.exports = {
             if (!userStreaks || userStreaks.length === 0) {
                 return await interaction.editReply({
                     content: `${targetUser.username} hasn't earned any streaks yet!`,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
 
@@ -44,9 +44,9 @@ module.exports = {
             await interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error('Error fetching user profile:', error);
-            await interaction.editReply({
-                content: 'There was an error fetching the profile!',
-                ephemeral: true
+            await interaction.reply({
+                content: '❌ An error occurred while fetching your profile.',
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

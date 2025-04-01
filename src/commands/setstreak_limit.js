@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -19,10 +19,11 @@ module.exports = {
     async execute(interaction) {
         try {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({
-                    content: 'You need administrator permissions to use this command.',
-                    ephemeral: true
+                await interaction.reply({
+                    content: '❌ You need administrator permissions to use this command.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
+                return;
             }
 
             const minutes = parseInt(interaction.options.getString('interval'));
@@ -38,13 +39,13 @@ module.exports = {
 
             await interaction.reply({
                 content: response,
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error in setstreak_limit command:', error);
-            await interaction.reply({
-                content: 'An error occurred while setting the streak limit. Please try again.',
-                ephemeral: true
+            await interaction.editReply({
+                content: '❌ An error occurred while setting the streak limit.',
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },
