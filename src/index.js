@@ -131,13 +131,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     try {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return await interaction.reply({
-                content: '❌ You need administrator permissions to use this command.',
-                ephemeral: true
-            });
-        }
-
         await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
