@@ -113,7 +113,8 @@ module.exports = {
                     }
                     // 2. Back button to main menu
                     else if (i.customId === 'back_to_main') {
-                        await module.exports.execute(interaction);
+                        // Don't call execute again - rebuild the main menu instead
+                        await showMainMenu(i, interaction.guildId);
                     }
                     // 3. Gambling system configuration options
                     else if (i.customId === 'gambling_select') {
@@ -640,6 +641,70 @@ async function handleStreakStreak(interaction, originalInteraction) {
         console.error('Error toggling streak streak:', error);
         await interaction.update({
             content: '❌ An error occurred while toggling the streak streak feature.',
+            ephemeral: true
+        });
+    }
+}
+
+// Add this function at the end of the file to rebuild the main menu
+async function showMainMenu(interaction, guildId) {
+    try {
+        // Get current configurations
+        const raidConfig = await streakManager.getRaidConfig(guildId);
+        const gamblingConfig = await streakManager.getGamblingConfig(guildId);
+        const streakStreakEnabled = await streakManager.isStreakStreakEnabled(guildId);
+        const triggerWords = await streakManager.getTriggerWords(guildId);
+        const streakLimit = await streakManager.getStreakLimit(guildId);
+
+        // Create the main embed with current configuration summary
+        const embed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('⚙️ Server Configuration')
+            .setDescription('Select a feature to configure from the dropdown menu below.')
+            .addFields(
+                { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
+                { name: '⚔️ Raid System', value: `Status: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidConfig.maxStealPercent}%\nRisk: ${raidConfig.riskPercent}%\nSuccess Chance: ${raidConfig.successChance}%\nCooldown: ${raidConfig.cooldownHours}h` },
+                { name: '🎲 Gambling System', value: `Status: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
+            );
+
+        // Create the main feature selection dropdown menu
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('config_select')
+                    .setPlaceholder('Select a feature to configure')
+                    .addOptions([
+                        {
+                            label: 'Core Features',
+                            description: 'Configure trigger words and basic settings',
+                            value: 'core',
+                            emoji: '🎯'
+                        },
+                        {
+                            label: 'Raid System',
+                            description: 'Configure raid settings and parameters',
+                            value: 'raid',
+                            emoji: '⚔️'
+                        },
+                        {
+                            label: 'Gambling System',
+                            description: 'Configure gambling settings and odds',
+                            value: 'gambling',
+                            emoji: '🎲'
+                        }
+                    ])
+            );
+
+        await interaction.update({
+            embeds: [embed],
+            components: [row],
+            ephemeral: true
+        });
+    } catch (error) {
+        console.error('Error showing main menu:', error);
+        await interaction.update({
+            content: '❌ An error occurred while returning to the main menu.',
+            components: [],
             ephemeral: true
         });
     }
