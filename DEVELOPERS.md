@@ -67,31 +67,36 @@ streakwiz/
 #### GuildConfig
 ```javascript
 {
-  guildId: string,          // Discord server ID
-  triggerWords: string[],   // List of words that trigger streaks
-  streakLimit: string,      // Rate limit for streak updates
-  streakStreakEnabled: boolean, // Enable/disable streak streaks
-  gamblingEnabled: boolean, // Enable/disable gambling feature
-  raidEnabled: boolean,     // Enable/disable raid feature
-  raidMaxStealPercent: number, // Maximum percentage that can be stolen
-  raidRiskPercent: number,  // Percentage risked on failed raids
-  raidSuccessChance: number, // Chance of successful raid
-  raidCooldownHours: number // Hours between raids
+    guildId: string,              // Primary key
+    triggerWords: string[],       // Array of trigger words
+    streakStreakEnabled: boolean, // Whether streak streak tracking is enabled
+    gamblingEnabled: boolean,     // Whether gambling is enabled
+    raidEnabled: boolean,         // Whether raid feature is enabled
+    raidMaxStealPercent: number,  // Maximum percentage that can be stolen
+    raidRiskPercent: number,      // Percentage of streaks to risk
+    raidSuccessChance: number,    // Base success chance for raids
+    raidCooldownHours: number,    // Cooldown period between raids
+    gamblingSuccessChance: number,// Success chance for gambling
+    gamblingMaxPercent: number,   // Maximum gamble percentage
+    gamblingMinStreaks: number,   // Minimum streaks required to gamble
+    createdAt: Date,              // When the config was created
+    updatedAt: Date               // When the config was last updated
 }
 ```
 
 #### Streak
 ```javascript
 {
-  userId: string,           // Discord user ID
-  guildId: string,         // Discord server ID
-  word: string,            // Trigger word
-  count: number,           // Current streak count
-  bestStreak: number,      // Highest streak achieved
-  streakStreak: number,    // Consecutive days with streaks
-  lastUpdate: Date,        // Last streak update timestamp
-  lastStreakDate: Date,    // Last streak streak date
-  lastRaidDate: Date,      // Last raid attempt timestamp
+    id: number,                   // Primary key
+    guildId: string,              // Foreign key to GuildConfig
+    userId: string,               // Discord user ID
+    trigger: string,              // The trigger word
+    count: number,                // Current streak count
+    streakStreak: number,         // Current streak streak count
+    lastStreak: Date,             // Last streak update timestamp
+    lastStreakStreak: Date,       // Last streak streak update timestamp
+    createdAt: Date,              // When the streak was created
+    updatedAt: Date               // When the streak was last updated
 }
 ```
 
@@ -183,37 +188,42 @@ logger.debug('Debug message', { context });
 1. **Database Errors**
    ```javascript
    try {
-     await database.operation();
+     await streakManager.addTriggerWord(guildId, word, description);
    } catch (error) {
-     logger.error('Database operation failed', { error });
-     throw new Error('Friendly user message');
+     if (error.name === 'SequelizeUniqueConstraintError') {
+       // Handle duplicate entry
+     } else if (error.name === 'SequelizeValidationError') {
+       // Handle validation error
+     } else {
+       // Handle other database errors
+     }
    }
    ```
 
 2. **Discord API Errors**
    ```javascript
    try {
-     await interaction.reply('Message');
+     await interaction.reply({ content: message });
    } catch (error) {
-     logger.error('Discord API error', { error });
-     // Handle gracefully
+     if (error.code === 50001) {
+       // Missing permissions
+     } else if (error.code === 50013) {
+       // Missing access
+     } else {
+       // Handle other Discord API errors
+     }
    }
    ```
 
 3. **Transaction Errors**
    ```javascript
-   let transaction = null;
    try {
-     transaction = await sequelize.transaction({
-       isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+     await sequelize.transaction(async (t) => {
+       // Perform multiple database operations
      });
-     // Perform operations
-     await transaction.commit();
    } catch (error) {
-     if (transaction) {
-       await transaction.rollback();
-     }
-     throw error;
+     // Transaction failed, all changes are rolled back
+     console.error('Transaction failed:', error);
    }
    ```
 
@@ -221,82 +231,113 @@ logger.debug('Debug message', { context });
 
 1. **Rate Limiting**
    ```javascript
-   const rateLimits = new Map();
-   const checkRateLimit = (guildId, userId, command, limit, window) => {
-     const key = `${guildId}-${userId}-${command}`;
+   const rateLimiter = new Map();
+
+   function isRateLimited(userId, command, limit = 5, window = 60000) {
+     const key = `${userId}-${command}`;
      const now = Date.now();
-     const lastUse = rateLimits.get(key) || 0;
      
-     if (now - lastUse < window) {
-       throw new Error(`Please wait ${Math.ceil((window - (now - lastUse)) / 1000)} seconds`);
+     if (!rateLimiter.has(key)) {
+       rateLimiter.set(key, [now]);
+       return false;
      }
      
-     rateLimits.set(key, now);
-   };
+     const timestamps = rateLimiter.get(key);
+     const windowStart = now - window;
+     
+     // Remove old timestamps
+     while (timestamps.length > 0 && timestamps[0] < windowStart) {
+       timestamps.shift();
+     }
+     
+     if (timestamps.length >= limit) {
+       return true;
+     }
+     
+     timestamps.push(now);
+     return false;
+   }
    ```
 
 2. **Anti-Exploit Protection**
    ```javascript
-   // Check for suspicious activity
-   const checkSuspiciousActivity = async (guildId, userId, timeWindow) => {
-     const recentUpdates = await Streak.count({
-       where: {
-         guildId,
-         userId,
-         lastUpdated: {
-           [Op.gte]: new Date(Date.now() - timeWindow)
-         }
-       }
-     });
+   function validateGambling(userStreaks, gambleAmount, maxPercent) {
+     // Check minimum streak requirement
+     if (userStreaks < 2) {
+       throw new Error('You need at least 2 streaks to gamble.');
+     }
      
-     return recentUpdates > 5; // More than 5 updates in time window
-   };
+     // Check maximum gamble percentage
+     const maxGamble = Math.floor(userStreaks * (maxPercent / 100));
+     if (gambleAmount > maxGamble) {
+       throw new Error(`You can only gamble up to ${maxPercent}% of your streaks.`);
+     }
+     
+     // Check for suspicious activity
+     if (gambleAmount === userStreaks) {
+       throw new Error('Cannot gamble all your streaks at once.');
+     }
+   }
    ```
 
 3. **Input Validation**
    ```javascript
-   const validateInput = (input, type, constraints) => {
-     switch (type) {
-       case 'percentage':
-         if (input < 1 || input > 100) {
-           throw new Error('Percentage must be between 1 and 100');
-         }
-         break;
-       case 'cooldown':
-         if (input < 1 || input > 168) {
-           throw new Error('Cooldown must be between 1 and 168 hours');
-         }
-         break;
-       // Add more validation types as needed
+   function validateTriggerWord(word) {
+     // Check length
+     if (word.length > 100) {
+       throw new Error('Trigger word must be 100 characters or less.');
      }
-   };
+     
+     // Check characters
+     if (!/^[a-z0-9\s-]+$/.test(word)) {
+       throw new Error('Trigger word can only contain letters, numbers, spaces, and hyphens.');
+     }
+     
+     // Check for common exploits
+     if (word.includes('@everyone') || word.includes('@here')) {
+       throw new Error('Trigger word cannot contain mentions.');
+     }
+   }
    ```
 
 ### Logging System
 
-```javascript
-// Enhanced logging for raid and gambling operations
-const logOperation = (operation, data) => {
-  const timestamp = new Date().toISOString();
-  const logData = {
-    ...data,
-    timestamp,
-    operation
-  };
+1. **Command Logging**
+   ```javascript
+   function logCommand(command, interaction, result) {
+     console.log(`=== ${command} Command ===`);
+     console.log(`Time: ${new Date().toISOString()}`);
+     console.log(`User: ${interaction.user.tag} (${interaction.user.id})`);
+     console.log(`Guild: ${interaction.guild.name} (${interaction.guild.id})`);
+     console.log(`Channel: ${interaction.channel.name} (${interaction.channel.id})`);
+     console.log(`Result: ${result}`);
+     console.log('=====================');
+   }
+   ```
 
-  switch (operation) {
-    case 'raid':
-      logger.info('Raid attempt', logData);
-      break;
-    case 'gamble':
-      logger.info('Gambling attempt', logData);
-      break;
-    case 'error':
-      logger.error('Operation failed', logData);
-      break;
-  }
-};
-```
+2. **Error Logging**
+   ```javascript
+   function logError(error, context) {
+     console.error('=== Error Occurred ===');
+     console.error(`Time: ${new Date().toISOString()}`);
+     console.error(`Context: ${context}`);
+     console.error(`Error: ${error.message}`);
+     console.error(`Stack: ${error.stack}`);
+     console.error('=====================');
+   }
+   ```
+
+3. **Action Logging**
+   ```javascript
+   function logAction(action, details) {
+     console.log(`=== ${action} ===`);
+     console.log(`Time: ${new Date().toISOString()}`);
+     Object.entries(details).forEach(([key, value]) => {
+       console.log(`${key}: ${value}`);
+     });
+     console.log('=====================');
+   }
+   ```
 
 ## Deployment
 
@@ -338,13 +379,44 @@ const logOperation = (operation, data) => {
 
 ## Future Improvements
 
-- [ ] Add rate limiting per guild
-- [ ] Implement backup system
-- [ ] Add analytics dashboard
-- [ ] Improve error handling
-- [ ] Add more test coverage
-- [ ] Implement caching system
-- [ ] Add raid/gambling statistics tracking
-- [ ] Implement anti-cheat system
-- [ ] Add user reputation system
-- [ ] Create raid/gambling leaderboards 
+### Planned Features
+1. **Enhanced Rate Limiting**
+   - Per-guild rate limits
+   - Dynamic rate limit adjustment based on server size
+   - Custom rate limit exceptions for trusted users
+
+2. **Backup System**
+   - Automatic database backups
+   - Backup restoration tools
+   - Backup verification
+
+3. **Leaderboards**
+   - Global leaderboards
+   - Category-based leaderboards
+   - Time-based leaderboards (daily, weekly, monthly)
+
+4. **Analytics Dashboard**
+   - Server activity metrics
+   - User engagement statistics
+   - Streak growth trends
+
+### Technical Improvements
+1. **Performance Optimization**
+   - Query caching
+   - Batch updates
+   - Connection pooling
+
+2. **Security Enhancements**
+   - Input sanitization
+   - SQL injection prevention
+   - Rate limit bypass detection
+
+3. **Error Recovery**
+   - Automatic retry mechanism
+   - Fallback options
+   - State recovery
+
+4. **Monitoring**
+   - Health checks
+   - Performance metrics
+   - Error tracking 

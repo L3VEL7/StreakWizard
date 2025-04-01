@@ -16655,6 +16655,210 @@ _****_
 
 _****_
 
+```diff
+              }
+  
+-             // Reset streaks
++             // Check if user has any streaks
++             const userStreaks = await streakManager.getUserStreaks(interaction.guildId, targetUser.id);
++             if (!userStreaks || userStreaks.length === 0) {
++                 return await interaction.editReply({
++                     content: `${targetUser} has no streaks to reset.`,
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
++             }
++ 
++             // Prepare warning message
++             let warningMessage = '⚠️ **Warning:** This will reset ';
+              if (word) {
+-                 // Reset specific word
+-                 if (!await streakManager.isValidTriggerWord(interaction.guildId, word)) {
++                 const targetStreak = userStreaks.find(s => s.trigger === word);
++                 if (!targetStreak) {
+                      return await interaction.editReply({
+-                         content: '❌ Invalid trigger word. Please use a word that is set up for streaks in this server.',
++                         content: `${targetUser} has no streaks for "${word}" to reset.`,
+                          flags: [InteractionResponseFlags.Ephemeral]
+                      });
+                  }
+- 
++                 warningMessage += `${targetUser}'s streak for "${word}" (${targetStreak.count} streaks)`;
++             } else {
++                 const totalStreaks = userStreaks.reduce((sum, streak) => sum + streak.count, 0);
++                 warningMessage += `all of ${targetUser}'s streaks (${totalStreaks} total streaks)`;
++             }
++             warningMessage += '.\n\nAre you sure you want to proceed?';
++ 
++             await interaction.editReply({
++                 content: warningMessage,
++                 flags: [InteractionResponseFlags.Ephemeral]
++             });
++ 
++             // Wait for confirmation
++             const filter = i => i.user.id === interaction.user.id;
++             try {
++                 const confirmation = await interaction.channel.awaitMessageComponent({
++                     filter,
++                     time: 30000,
++                     componentType: 2 // Button component
++                 });
++ 
++                 if (confirmation.customId === 'confirm') {
++                     // Log the reset action
++                     console.log('=== Streak Reset ===');
++                     console.log(`Time: ${new Date().toISOString()}`);
++                     console.log(`Initiator: ${interaction.user.tag} (${interaction.user.id})`);
++                     console.log(`Target: ${targetUser.tag} (${targetUser.id})`);
++                     console.log(`Guild: ${interaction.guild.name} (${interaction.guild.id})`);
++                     console.log(`Word: ${word || 'all'}`);
++                     console.log('==================');
++ 
++                     // Reset streaks
++                     if (word) {
+                          await streakManager.resetUserStreak(interaction.guildId, targetUser.id, word);
+-                 
+-                 // Create response message
+                          const message = `✅ Reset ${targetUser}'s streak for "${word}" to 0.`;
+                          await interaction.editReply(message);
+                      } else {
+-                 // Reset all words
+                          await streakManager.resetAllUserStreaks(interaction.guildId, targetUser.id);
+-                 
+-                 // Create response message
+                          const message = `✅ Reset all of ${targetUser}'s streaks to 0.`;
+                          await interaction.editReply(message);
++                     }
++                 } else {
++                     await interaction.editReply({
++                         content: '❌ Operation cancelled.',
++                         flags: [InteractionResponseFlags.Ephemeral]
++                     });
++                 }
++             } catch (error) {
++                 await interaction.editReply({
++                     content: '❌ No confirmation received. Operation cancelled.',
++                     flags: [InteractionResponseFlags.Ephemeral]
++                 });
+              }
+  
+```
+
+---
+
+_****_
+
+5. Finally, let's update `restart.js` to add proper logging and graceful shutdown:
+
+
+
+---
+
+_****_
+
+```diff
+              // Defer reply since this might take a moment
+              await interaction.deferReply();
++ 
++             // Log the restart attempt
++             console.log('=== Bot Restart Initiated ===');
++             console.log(`Time: ${new Date().toISOString()}`);
++             console.log(`Initiator: ${interaction.user.tag} (${interaction.user.id})`);
++             console.log(`Guild: ${interaction.guild.name} (${interaction.guild.id})`);
++             console.log(`Channel: ${interaction.channel.name} (${interaction.channel.id})`);
++             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
++             console.log('=============================');
+  
+              // Create response message
+              await interaction.editReply(message);
+  
+-             // Exit the process to trigger a restart
+-             process.exit(0);
++             // Wait a moment to ensure the message is sent
++             await new Promise(resolve => setTimeout(resolve, 2000));
++ 
++             // Perform graceful shutdown
++             try {
++                 // Close database connections
++                 await streakManager.closeConnections();
++                 
++                 // Close Discord client connection
++                 await interaction.client.destroy();
++                 
++                 // Exit with custom code to indicate restart
++                 process.exit(2);
++             } catch (error) {
++                 console.error('Error during graceful shutdown:', error);
++                 // Force exit if graceful shutdown fails
++                 process.exit(1);
++             }
+  
+          } catch (error) {
+```
+
+---
+
+_****_
+
+I've made several improvements to all the commands to make them more robust and user-friendly:
+
+1. **setup.js**:
+- Added length limits for trigger words (100 chars) and descriptions (500 chars)
+- Added character validation for trigger words
+- Improved error messages and validation
+
+2. **toggle_streakstreak.js**:
+- Added confirmation step when disabling streak streak tracking
+- Added warning message explaining the consequences
+- Added preservation of existing streak streak data
+
+3. **remove.js**:
+- Added confirmation step with word statistics
+- Added warning message about data preservation
+- Added detailed information about the word being removed
+
+4. **reset.js**:
+- Added confirmation step with streak counts
+- Added check for existing streaks
+- Added detailed logging of reset actions
+- Added specific word validation
+
+5. **restart.js**:
+- Added detailed logging of restart attempts
+- Added graceful shutdown process
+- Added database connection cleanup
+- Added proper exit codes for different scenarios
+
+Common improvements across all commands:
+1. Better error handling and messages
+2. Confirmation steps for destructive actions
+3. Detailed logging
+4. Input validation
+5. Proper permission checks
+6. Consistent use of flags instead of ephemeral
+7. Clear user feedback
+8. Data preservation warnings
+
+Would you like me to make any additional improvements or focus on any specific aspect of these commands?
+
+---
+
+_**User**_
+
+update docs
+
+---
+
+_**Assistant**_
+
+I'll update the documentation to reflect all the recent changes and improvements. Let me update both the README.md and DEVELOPERS.md files:
+
+1. First, let's update the README.md:
+
+
+---
+
+_****_
+
 Cancelled
 
 ---
