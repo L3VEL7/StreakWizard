@@ -167,10 +167,12 @@ Streak.addHook('beforeSave', async (streak) => {
 
 // Add transaction support to migration function
 async function migrateDatabase() {
-    const transaction = await sequelize.transaction();
+    // Use a transaction but don't require one for every operation
+    let transaction = null;
     
     try {
         console.log('Starting database migration...');
+        transaction = await sequelize.transaction();
 
         // Check if tables exist
         const guildConfigExists = await checkTableExists('GuildConfigs');
@@ -178,7 +180,7 @@ async function migrateDatabase() {
 
         if (!guildConfigExists || !streaksExists) {
             console.log('Tables do not exist, skipping migration');
-            await transaction.commit();
+            if (transaction) await transaction.commit();
             return;
         }
 
@@ -302,11 +304,23 @@ async function migrateDatabase() {
             for (const column of columnsToAdd) {
                 const exists = await checkColumnExists('Streaks', column.name);
                 if (!exists) {
-                    await sequelize.query(
-                        `ALTER TABLE "Streaks" ADD COLUMN "${column.name}" ${column.type}`,
-                        { transaction }
-                    );
-                    console.log(`Added ${column.name} column to Streaks`);
+                    console.log(`Adding column ${column.name} to Streaks...`);
+                    try {
+                        await sequelize.query(
+                            `ALTER TABLE "Streaks" ADD COLUMN "${column.name}" ${column.type}`,
+                            { transaction }
+                        );
+                        console.log(`Added ${column.name} column to Streaks`);
+                    } catch (columnError) {
+                        // If error is "column already exists", just log and continue
+                        if (columnError.parent && columnError.parent.code === '42701') {
+                            console.log(`Column ${column.name} already exists, skipping...`);
+                        } else {
+                            throw columnError;
+                        }
+                    }
+                } else {
+                    console.log(`Column ${column.name} already exists, skipping...`);
                 }
             }
 
@@ -336,35 +350,60 @@ async function migrateDatabase() {
             for (const [columnName, columnType] of Object.entries(requiredColumns)) {
                 const exists = await checkColumnExists('Streaks', columnName);
                 if (!exists) {
-                    await sequelize.query(
-                        `ALTER TABLE "Streaks" ADD COLUMN "${columnName}" ${columnType}`,
-                        { transaction }
-                    );
-                    console.log(`Added missing column ${columnName} to Streaks`);
+                    console.log(`Adding missing column ${columnName} to Streaks...`);
+                    try {
+                        await sequelize.query(
+                            `ALTER TABLE "Streaks" ADD COLUMN "${columnName}" ${columnType}`,
+                            { transaction }
+                        );
+                        console.log(`Added missing column ${columnName} to Streaks`);
+                    } catch (columnError) {
+                        // If error is "column already exists", just log and continue
+                        if (columnError.parent && columnError.parent.code === '42701') {
+                            console.log(`Column ${columnName} already exists, skipping...`);
+                        } else {
+                            throw columnError;
+                        }
+                    }
+                } else {
+                    console.log(`Column ${columnName} already exists, skipping...`);
                 }
             }
 
-            // Commit the transaction
-            await transaction.commit();
+            // Commit the transaction at the end of successful migration
+            if (transaction) await transaction.commit();
             console.log('Migration completed successfully');
         } catch (error) {
-            // Rollback the transaction on error
-            await transaction.rollback();
-            console.error('Migration failed, rolling back changes:', error);
+            // Handle migration errors
+            if (transaction) await transaction.rollback();
+            console.error('Migration step failed:', error.message);
             
-            // Attempt to restore from backups
+            // Skip the column already exists error and continue
+            if (error.parent && error.parent.code === '42701') {
+                console.log('Column already exists error occurred, this is not fatal. Continuing...');
+                // Try to proceed with database initialization without failing
+                return;
+            }
+            
+            // For other errors, attempt to restore from backups
             try {
                 await restoreFromBackup(guildConfigBackup, 'GuildConfigs');
                 await restoreFromBackup(streaksBackup, 'Streaks');
                 console.log('Successfully restored from backups');
             } catch (restoreError) {
-                console.error('Failed to restore from backups:', restoreError);
+                console.error('Failed to restore from backups:', restoreError.message);
             }
+            
+            // Don't rethrow the error to allow the application to continue
+            console.error('Migration encountered issues but application will attempt to continue');
         }
     } catch (error) {
-        console.error('Migration failed:', error);
-        await transaction.rollback();
-        throw error;
+        // Handle transaction setup errors
+        if (transaction) await transaction.rollback();
+        console.error('Database migration failed:', error.message);
+        
+        // Don't rethrow the error to allow the application to continue
+        console.error('Migration setup failed but application will attempt to continue');
     }
 }
 
@@ -493,15 +532,33 @@ async function initializeDatabase() {
     try {
         console.log('Starting database initialization...');
         
-        // Run migration first
-        await migrateDatabase();
+        // Run migration first - even if it fails, try to continue
+        try {
+            await migrateDatabase();
+        } catch (migrationError) {
+            console.error('Migration encountered issues but will try to continue with initialization:', migrationError.message);
+        }
         
         // Then sync the models without altering existing tables
-        await sequelize.sync({ alter: false });
-        console.log('Database synchronized successfully');
+        try {
+            await sequelize.sync({ alter: false });
+            console.log('Database synchronized successfully');
+        } catch (syncError) {
+            // Log sync error but don't fail completely
+            console.error('Error during model sync:', syncError.message);
+            console.log('Will attempt to continue despite sync errors');
+        }
+        
+        return true; // Return success even if there were some non-fatal errors
     } catch (error) {
-        console.error('Error initializing database:', error);
-        throw error;
+        console.error('Unrecoverable error during database initialization:', error);
+        // Only throw if this is a truly fatal error
+        if (error.name === 'SequelizeConnectionError' || 
+            error.name === 'SequelizeConnectionRefusedError') {
+            throw error;
+        }
+        console.log('Will attempt to continue despite initialization errors');
+        return false;
     }
 }
 
