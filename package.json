@@ -14,7 +14,8 @@
     "migrate": "node src/database/migrate.js",
     "railway:start": "node src/index.js",
     "reset-commands": "node reset-commands.js",
-    "register-dev": "node register-dev-commands.js"
+    "register-dev": "node register-dev-commands.js",
+    "cleanup-commands": "node cleanup-commands.js"
   },
   "keywords": ["discord", "bot", "streak", "tracking"],
   "author": "",
