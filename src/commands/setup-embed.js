@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -33,7 +33,7 @@ module.exports = {
                 .addFields(
                     { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? 'Enabled' : 'Disabled'}` },
                     { name: '⚔️ Raid System', value: `Enabled: ${raidConfig.enabled ? 'Yes' : 'No'}\nMax Steal: ${raidConfig.maxStealPercent}%\nRisk: ${raidConfig.riskPercent}%\nSuccess Chance: ${raidConfig.successChance}%\nCooldown: ${raidConfig.cooldownHours}h` },
-                    { name: '🎲 Gambling System', value: `Enabled: ${gamblingConfig.enabled ? 'Yes' : 'No'}\nWin Chance: ${gamblingConfig.winChance}%\nWin Multiplier: ${gamblingConfig.winMultiplier}x` }
+                    { name: '🎲 Gambling System', value: `Enabled: ${gamblingConfig.enabled ? 'Yes' : 'No'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
                 );
 
             // Create the dropdown menu
@@ -83,17 +83,42 @@ module.exports = {
                 }
 
                 try {
-                    switch (i.values[0]) {
-                        case 'core':
-                            await handleCoreConfig(i, interaction);
-                            break;
-                        case 'raid':
-                            await handleRaidConfig(i, interaction);
-                            break;
-                        case 'gambling':
-                            await handleGamblingConfig(i, interaction);
-                            break;
+                    // Check for main menu selections
+                    if (i.customId === 'config_select') {
+                        switch (i.values[0]) {
+                            case 'core':
+                                await handleCoreConfig(i, interaction);
+                                break;
+                            case 'raid':
+                                await handleRaidConfig(i, interaction);
+                                break;
+                            case 'gambling':
+                                await handleGamblingConfig(i, interaction);
+                                break;
+                        }
                     }
+                    // Check for back button
+                    else if (i.customId === 'back_to_main') {
+                        await module.exports.execute(interaction);
+                    }
+                    // Check for gambling options
+                    else if (i.customId === 'gambling_select') {
+                        switch (i.values[0]) {
+                            case 'toggle_gambling':
+                                await handleToggleGambling(i, interaction);
+                                break;
+                            case 'success_chance':
+                                await handleGamblingSuccessChance(i, interaction);
+                                break;
+                            case 'max_gamble':
+                                await handleGamblingMaxPercent(i, interaction);
+                                break;
+                            case 'min_streaks':
+                                await handleGamblingMinStreaks(i, interaction);
+                                break;
+                        }
+                    }
+                    // Handle other subsystem menus here
                 } catch (error) {
                     console.error('Error handling configuration:', error);
                     await i.update({
@@ -130,7 +155,7 @@ async function handleCoreConfig(interaction, originalInteraction) {
             { name: 'Streak Streak', value: 'Enable or disable streak streak tracking' }
         );
 
-    const row = new ActionRowBuilder()
+    const selectRow = new ActionRowBuilder()
         .addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('core_select')
@@ -156,10 +181,12 @@ async function handleCoreConfig(interaction, originalInteraction) {
                     }
                 ])
         );
+    
+    const backButton = createBackButton();
 
     await interaction.update({
         embeds: [embed],
-        components: [row],
+        components: [selectRow, backButton],
         ephemeral: true
     });
 }
@@ -179,7 +206,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
             { name: 'Cooldown', value: `Current: ${raidConfig.cooldownHours}h` }
         );
 
-    const row = new ActionRowBuilder()
+    const selectRow = new ActionRowBuilder()
         .addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('raid_select')
@@ -217,10 +244,12 @@ async function handleRaidConfig(interaction, originalInteraction) {
                     }
                 ])
         );
+    
+    const backButton = createBackButton();
 
     await interaction.update({
         embeds: [embed],
-        components: [row],
+        components: [selectRow, backButton],
         ephemeral: true
     });
 }
@@ -234,11 +263,12 @@ async function handleGamblingConfig(interaction, originalInteraction) {
         .setDescription('Select a setting to configure:')
         .addFields(
             { name: 'Enable/Disable', value: 'Turn the gambling system on or off' },
-            { name: 'Win Chance', value: `Current: ${gamblingConfig.winChance}%` },
-            { name: 'Win Multiplier', value: `Current: ${gamblingConfig.winMultiplier}x` }
+            { name: 'Success Chance', value: `Current: ${gamblingConfig.successChance || 50}%` },
+            { name: 'Max Gamble Percent', value: `Current: ${gamblingConfig.maxGamblePercent || 50}%` },
+            { name: 'Min Streaks', value: `Current: ${gamblingConfig.minStreaks || 10} streaks` }
         );
 
-    const row = new ActionRowBuilder()
+    const selectRow = new ActionRowBuilder()
         .addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('gambling_select')
@@ -251,23 +281,96 @@ async function handleGamblingConfig(interaction, originalInteraction) {
                         emoji: '🔒'
                     },
                     {
-                        label: 'Win Chance',
-                        description: 'Set win probability',
-                        value: 'win_chance',
+                        label: 'Success Chance',
+                        description: 'Set success probability',
+                        value: 'success_chance',
                         emoji: '🎯'
                     },
                     {
-                        label: 'Win Multiplier',
-                        description: 'Set win multiplier',
-                        value: 'win_multiplier',
+                        label: 'Max Gamble Percent',
+                        description: 'Set maximum gambling percentage',
+                        value: 'max_gamble',
                         emoji: '💰'
+                    },
+                    {
+                        label: 'Min Streaks',
+                        description: 'Set minimum streaks required',
+                        value: 'min_streaks',
+                        emoji: '📊'
                     }
                 ])
         );
+    
+    const backButton = createBackButton();
 
     await interaction.update({
         embeds: [embed],
-        components: [row],
+        components: [selectRow, backButton],
         ephemeral: true
     });
-} 
+}
+
+// Add back button function
+function createBackButton() {
+    return new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_main')
+                .setLabel('Back to Main Menu')
+                .setStyle(ButtonStyle.Secondary)
+        );
+}
+
+// Handlers for gambling config options
+async function handleToggleGambling(interaction, originalInteraction) {
+    try {
+        const currentConfig = await streakManager.getGamblingConfig(interaction.guildId);
+        const newStatus = !currentConfig.enabled;
+
+        await streakManager.updateGamblingConfig(interaction.guildId, {
+            enabled: newStatus,
+            successChance: currentConfig.successChance,
+            maxGamblePercent: currentConfig.maxGamblePercent,
+            minStreaks: currentConfig.minStreaks
+        });
+
+        const status = newStatus ? 'enabled' : 'disabled';
+        const embed = new EmbedBuilder()
+            .setColor(newStatus ? '#00FF00' : '#FF0000')
+            .setTitle('🎲 Gambling System Configuration')
+            .setDescription(`Gambling system has been ${status}.`)
+            .addFields(
+                { name: 'Current Settings', value: 
+                    `• Status: ${newStatus ? '✅ Enabled' : '❌ Disabled'}\n` +
+                    `• Success Chance: ${currentConfig.successChance}%\n` +
+                    `• Max Gamble: ${currentConfig.maxGamblePercent}%\n` +
+                    `• Min Streaks: ${currentConfig.minStreaks}`
+                }
+            );
+
+        // Return to gambling config menu after updating
+        await handleGamblingConfig(interaction, originalInteraction);
+    } catch (error) {
+        console.error('Error toggling gambling:', error);
+        await interaction.update({
+            content: '❌ An error occurred while toggling the gambling system.',
+            ephemeral: true
+        });
+    }
+}
+
+// Placeholder functions for other gambling settings
+async function handleGamblingSuccessChance(interaction, originalInteraction) {
+    // For now just return to gambling config
+    await handleGamblingConfig(interaction, originalInteraction);
+}
+
+async function handleGamblingMaxPercent(interaction, originalInteraction) {
+    // For now just return to gambling config
+    await handleGamblingConfig(interaction, originalInteraction);
+}
+
+async function handleGamblingMinStreaks(interaction, originalInteraction) {
+    // For now just return to gambling config
+    await handleGamblingConfig(interaction, originalInteraction);
+}

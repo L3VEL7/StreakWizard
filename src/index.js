@@ -97,13 +97,15 @@ client.once('ready', async () => {
             commands.push(command.data.toJSON());
         }
 
-        // Register commands per guild
+        // Only register commands per guild - do not register globally
+        // This prevents duplicate commands in the UI
         const guilds = await client.guilds.fetch();
         console.log(`Registering commands in ${guilds.size} guilds...`);
         
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        
         for (const [guildId, guild] of guilds) {
             try {
-                const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
                 await rest.put(
                     Routes.applicationGuildCommands(client.user.id, guildId),
                     { body: commands },
@@ -112,6 +114,18 @@ client.once('ready', async () => {
             } catch (guildError) {
                 console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
             }
+        }
+        
+        // Clear any global commands that may have been registered previously
+        // This will help if there were previously registered global commands
+        try {
+            await rest.put(
+                Routes.applicationCommands(client.user.id),
+                { body: [] }
+            );
+            console.log('Successfully cleared global commands');
+        } catch (globalError) {
+            console.error('Failed to clear global commands:', globalError);
         }
     } catch (error) {
         console.error('Failed to register commands:', error);
