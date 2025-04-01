@@ -441,18 +441,52 @@ async function restoreFromBackup(backup, tableName) {
         
         // Restore from backup
         if (backup && backup.length > 0) {
-            const columns = Object.keys(backup[0]);
-            const values = backup.map(row => columns.map(col => row[col]));
-            
-            await sequelize.query(
-                `INSERT INTO "${tableName}" (${columns.map(col => `"${col}"`).join(', ')}) VALUES ${values.map(row => `(${row.map(val => typeof val === 'string' ? `'${val}'` : val).join(', ')})`).join(', ')}`,
-                { type: sequelize.QueryTypes.INSERT }
-            );
+            for (const row of backup) {
+                const columns = Object.keys(row);
+                const values = columns.map(col => {
+                    const val = row[col];
+                    
+                    // Handle array values (like triggerWords)
+                    if (Array.isArray(val)) {
+                        return `ARRAY[${val.map(item => `'${escapeSQLString(item)}'`).join(', ')}]::text[]`;
+                    }
+                    
+                    // Handle string values
+                    if (typeof val === 'string') {
+                        return `'${escapeSQLString(val)}'`;
+                    }
+                    
+                    // Handle null values
+                    if (val === null) {
+                        return 'NULL';
+                    }
+                    
+                    // Handle date values
+                    if (val instanceof Date) {
+                        return `'${val.toISOString()}'`;
+                    }
+                    
+                    // Handle other values
+                    return val;
+                });
+                
+                // Insert one row at a time
+                await sequelize.query(
+                    `INSERT INTO "${tableName}" (${columns.map(col => `"${col}"`).join(', ')}) VALUES (${values.join(', ')})`,
+                    { type: sequelize.QueryTypes.INSERT }
+                );
+            }
         }
     } catch (error) {
         console.error(`Error restoring table ${tableName} from backup:`, error);
         throw error;
     }
+}
+
+// Helper function to escape SQL string values
+function escapeSQLString(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/'/g, "''");
 }
 
 async function initializeDatabase() {

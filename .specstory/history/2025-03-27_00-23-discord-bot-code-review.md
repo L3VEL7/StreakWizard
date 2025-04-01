@@ -4,303 +4,6 @@
 
 _**User**_
 
-please update the md files
-
----
-
-_**Assistant**_
-
-I'll help update the markdown files to reflect the latest changes and features. Let me check the current README files first:
-
-
----
-
-_****_
-
-<details>
-            <summary>Listed current directory • **15** results</summary>
-        
-| Name |
-|-------|
-| 📁 `.git` |
-| 📄 `.env` |
-| 📄 `package.json` |
-| 📄 `package-lock.json` |
-| 📁 `node_modules` |
-| 📄 `Procfile` |
-| 📄 `on` |
-| 📄 `README.md` |
-| 📄 `DEVELOPERS.md` |
-| 📄 `.env.example` |
-| 📁 `src` |
-| 📄 `.prettierrc` |
-| 📄 `.eslintrc.json` |
-| 📄 `.gitignore` |
-| 📁 `.specstory` |
-
-</details>
-
----
-
-_****_
-
-Let me check the current content of the README files:
-
-
----
-
-_****_
-
-Read file: README.md
-
----
-
-_****_
-
-Read file: DEVELOPERS.md
-
----
-
-_****_
-
-Let me update both files to include the new raid and gambling features, along with their safety measures. I'll start with the README.md:
-
-
----
-
-_****_
-
-```diff
-  - 📝 **Detailed Statistics**: Track server-wide engagement
-  - 💾 **Robust Database**: PostgreSQL backend with automatic migrations and backups
-+ - 🎲 **Gambling System**: Gamble a percentage of your streaks on coin flips
-+ - ⚔️ **Raid System**: Challenge other users' streaks with risk and reward
-  
-  ## Quick Start
-     - Use `/reset` to reset streaks for users or trigger words (admin only)
-     - Use `/restart` to restart the bot (admin only)
-+    - Use `/configgamble` to configure gambling settings (admin only)
-+    - Use `/configraid` to configure raid settings (admin only)
-  
-  2. **User Commands**
-     - Use `/profile` to view your or another user's streak profile
-     - Use `/leaderboard` to view rankings for each trigger word
-     - Use `/stats` to view server-wide streak statistics
-+    - Use `/gamble` to gamble streaks on a coin flip
-+    - Use `/raid` to challenge another user's streak
-     - Use `/help` to view all available commands
-  
-     - 🎉 (Party Popper) for milestone announcements
-  
-+ ### Gambling System
-+ - Gamble a percentage of your streaks on coin flips
-+ - Configurable by server administrators
-+ - Win or lose based on coin flip result
-+ - Minimum streak requirements
-+ - Rate limiting to prevent abuse
-+ - Transaction-based updates for safety
-+ 
-+ ### Raid System
-+ - Challenge other users' streaks
-+ - Risk a percentage of your streaks to steal from others
-+ - Configurable settings per server:
-+   - Maximum steal percentage (default: 20%)
-+   - Risk percentage (default: 30%)
-+   - Success chance (default: 40%)
-+   - Cooldown period (default: 24 hours)
-+ - Safety features:
-+   - Minimum streak requirements
-+   - Rate limiting
-+   - Anti-exploit protection
-+   - Transaction-based updates
-+   - Maximum streak caps
-+   - Suspicious activity detection
-+ 
-+ ### Safety Features
-+ - Rate limiting for all commands
-+ - Transaction-based updates
-+ - Anti-exploit protection
-+ - Input validation
-+ - Error recovery
-+ - Detailed logging
-+ - Configuration validation
-+ - Maximum limits and caps
-+ 
-  ## Database Migration
-  
-```
-
----
-
-_****_
-
-Now, let me update the DEVELOPERS.md file to include technical details about the new features:
-
-
-
----
-
-_****_
-
-```diff
-    streakLimit: string,      // Rate limit for streak updates
-    streakStreakEnabled: boolean, // Enable/disable streak streaks
-+   gamblingEnabled: boolean, // Enable/disable gambling feature
-+   raidEnabled: boolean,     // Enable/disable raid feature
-+   raidMaxStealPercent: number, // Maximum percentage that can be stolen
-+   raidRiskPercent: number,  // Percentage risked on failed raids
-+   raidSuccessChance: number, // Chance of successful raid
-+   raidCooldownHours: number // Hours between raids
-  }
-  ```
-    lastUpdate: Date,        // Last streak update timestamp
-    lastStreakDate: Date,    // Last streak streak date
-+   lastRaidDate: Date,      // Last raid attempt timestamp
-  }
-  ```
-       // Handle gracefully
-     }
-+    ```
-+ 
-+ 3. **Transaction Errors**
-+    ```javascript
-+    let transaction = null;
-+    try {
-+      transaction = await sequelize.transaction({
-+        isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
-+      });
-+      // Perform operations
-+      await transaction.commit();
-+    } catch (error) {
-+      if (transaction) {
-+        await transaction.rollback();
-+      }
-+      throw error;
-+    }
-+    ```
-+ 
-+ ### Safety Features
-+ 
-+ 1. **Rate Limiting**
-+    ```javascript
-+    const rateLimits = new Map();
-+    const checkRateLimit = (guildId, userId, command, limit, window) => {
-+      const key = `${guildId}-${userId}-${command}`;
-+      const now = Date.now();
-+      const lastUse = rateLimits.get(key) || 0;
-+      
-+      if (now - lastUse < window) {
-+        throw new Error(`Please wait ${Math.ceil((window - (now - lastUse)) / 1000)} seconds`);
-+      }
-+      
-+      rateLimits.set(key, now);
-+    };
-+    ```
-+ 
-+ 2. **Anti-Exploit Protection**
-+    ```javascript
-+    // Check for suspicious activity
-+    const checkSuspiciousActivity = async (guildId, userId, timeWindow) => {
-+      const recentUpdates = await Streak.count({
-+        where: {
-+          guildId,
-+          userId,
-+          lastUpdated: {
-+            [Op.gte]: new Date(Date.now() - timeWindow)
-+          }
-+        }
-+      });
-+      
-+      return recentUpdates > 5; // More than 5 updates in time window
-+    };
-+    ```
-+ 
-+ 3. **Input Validation**
-+    ```javascript
-+    const validateInput = (input, type, constraints) => {
-+      switch (type) {
-+        case 'percentage':
-+          if (input < 1 || input > 100) {
-+            throw new Error('Percentage must be between 1 and 100');
-+          }
-+          break;
-+        case 'cooldown':
-+          if (input < 1 || input > 168) {
-+            throw new Error('Cooldown must be between 1 and 168 hours');
-+          }
-+          break;
-+        // Add more validation types as needed
-+      }
-+    };
-+    ```
-+ 
-+ ### Logging System
-+ 
-+ ```javascript
-+ // Enhanced logging for raid and gambling operations
-+ const logOperation = (operation, data) => {
-+   const timestamp = new Date().toISOString();
-+   const logData = {
-+     ...data,
-+     timestamp,
-+     operation
-+   };
-+ 
-+   switch (operation) {
-+     case 'raid':
-+       logger.info('Raid attempt', logData);
-+       break;
-+     case 'gamble':
-+       logger.info('Gambling attempt', logData);
-+       break;
-+     case 'error':
-+       logger.error('Operation failed', logData);
-+       break;
-+   }
-+ };
-  ```
-  
-  - [ ] Add more test coverage
-  - [ ] Implement caching system
-+ - [ ] Add raid/gambling statistics tracking
-+ - [ ] Implement anti-cheat system
-+ - [ ] Add user reputation system
-+ - [ ] Create raid/gambling leaderboards 
-```
-
----
-
-_****_
-
-I've updated both markdown files to include comprehensive documentation about the new raid and gambling features, along with their safety measures. The updates include:
-
-1. **README.md Updates**:
-   - Added new features to the feature list
-   - Added new admin and user commands
-   - Added detailed sections about gambling and raid systems
-   - Added a new safety features section
-   - Updated command documentation
-
-2. **DEVELOPERS.md Updates**:
-   - Updated database schema with new fields
-   - Added transaction error handling examples
-   - Added safety features section with code examples
-   - Added enhanced logging system documentation
-   - Added new future improvements
-
-The documentation now provides:
-- Clear explanations of new features
-- Technical details for developers
-- Safety measures and anti-exploit protections
-- Code examples for common operations
-- Future development suggestions
-
-Would you like me to make any additional changes or clarifications to the documentation?
-
----
-
-_**User**_
-
 (node:1) Warning: Supplying "ephemeral" for interaction response options is deprecated. Utilize flags instead.
 level:
 "error"
@@ -27116,6 +26819,348 @@ Yes, the database is still backward compatible. The changes we made ensure this 
 3. Not changing any existing column types or removing any existing columns
 
 The migration process is designed to be non-destructive and will automatically add the `lastRaidDate` column to existing databases when they upgrade to the new version. Old code would still work with the updated database since we're only adding a column, not modifying existing schema structure.
+
+---
+
+_**User**_
+
+    sql: `INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "streakLimit", "createdAt", "updatedAt", "streakStreakEnabled", "gamblingEnabled", "raidEnabled", "raidMaxStealPercent", "raidRiskPercent", "raidSuccessChance", "gamblingSuccessChance", "gamblingMaxPercent", "gamblingMinStreaks", "raidCooldownHours") VALUES ('956307382919647292', bm,ooga booga, 0, Sun Feb 09 2025 22:19:34 GMT+0000 (Coordinated Universal Time), Sun Feb 09 2025 22:47:25 GMT+0000 (Coordinated Universal Time), true, false, false, 20, 30, 40, 50, 50, 10, 24), ('1092548123768930304', bm,grouse, 1440, Mon Feb 10 2025 23:34:45 GMT+0000 (Coordinated Universal Time), Tue Apr 01 2025 20:32:36 GMT+0000 (Coordinated Universal Time), true, true, true, 20, 30, 40, 50, 50, 10, 24)`,
+
+    at Query.run (/app/node_modules/sequelize/lib/dialects/postgres/query.js:50:25)
+
+      at Readable.push (node:internal/streams/readable:392:5)
+
+      at addChunk (node:internal/streams/readable:561:12)
+
+    parameters: undefined
+
+  },
+
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+
+  original: error: syntax error at or near "booga"
+
+      at Readable.push (node:internal/streams/readable:392:5)
+
+    length: 95,
+
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+
+    severity: 'ERROR',
+
+    code: '42601',
+
+    length: 95,
+
+    detail: undefined,
+
+    severity: 'ERROR',
+
+    hint: undefined,
+
+    code: '42601',
+
+    position: '345',
+
+    internalPosition: undefined,
+
+    detail: undefined,
+
+    internalQuery: undefined,
+
+    hint: undefined,
+
+    where: undefined,
+
+    schema: undefined,
+
+    position: '345',
+
+    table: undefined,
+
+    internalPosition: undefined,
+
+    column: undefined,
+
+    dataType: undefined,
+
+    internalQuery: undefined,
+
+    constraint: undefined,
+
+    file: 'scan.l',
+
+    where: undefined,
+
+    line: '1242',
+
+    schema: undefined,
+
+    routine: 'scanner_yyerror',
+
+    table: undefined,
+
+    column: undefined,
+
+    dataType: undefined,
+
+    sql: `INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "streakLimit", "createdAt", "updatedAt", "streakStreakEnabled", "gamblingEnabled", "raidEnabled", "raidMaxStealPercent", "raidRiskPercent", "raidSuccessChance", "gamblingSuccessChance", "gamblingMaxPercent", "gamblingMinStreaks", "raidCooldownHours") VALUES ('956307382919647292', bm,ooga booga, 0, Sun Feb 09 2025 22:19:34 GMT+0000 (Coordinated Universal Time), Sun Feb 09 2025 22:47:25 GMT+0000 (Coordinated Universal Time), true, false, false, 20, 30, 40, 50, 50, 10, 24), ('1092548123768930304', bm,grouse, 1440, Mon Feb 10 2025 23:34:45 GMT+0000 (Coordinated Universal Time), Tue Apr 01 2025 20:32:36 GMT+0000 (Coordinated Universal Time), true, true, true, 20, 30, 40, 50, 50, 10, 24)`,
+
+    constraint: undefined,
+
+    parameters: undefined
+
+    file: 'scan.l',
+
+  },
+
+    line: '1242',
+
+  original: error: syntax error at or near "booga"
+
+    routine: 'scanner_yyerror',
+
+      at Parser.parseErrorMessage (/app/node_modules/pg-protocol/dist/parser.js:283:98)
+
+      at Parser.handlePacket (/app/node_modules/pg-protocol/dist/parser.js:122:29)
+
+    sql: `INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "streakLimit", "createdAt", "updatedAt", "streakStreakEnabled", "gamblingEnabled", "raidEnabled", "raidMaxStealPercent", "raidRiskPercent", "raidSuccessChance", "gamblingSuccessChance", "gamblingMaxPercent", "gamblingMinStreaks", "raidCooldownHours") VALUES ('956307382919647292', bm,ooga booga, 0, Sun Feb 09 2025 22:19:34 GMT+0000 (Coordinated Universal Time), Sun Feb 09 2025 22:47:25 GMT+0000 (Coordinated Universal Time), true, false, false, 20, 30, 40, 50, 50, 10, 24), ('1092548123768930304', bm,grouse, 1440, Mon Feb 10 2025 23:34:45 GMT+0000 (Coordinated Universal Time), Tue Apr 01 2025 20:32:36 GMT+0000 (Coordinated Universal Time), true, true, true, 20, 30, 40, 50, 50, 10, 24)`,
+
+    parameters: undefined
+
+  },
+
+  sql: `INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "streakLimit", "createdAt", "updatedAt", "streakStreakEnabled", "gamblingEnabled", "raidEnabled", "raidMaxStealPercent", "raidRiskPercent", "raidSuccessChance", "gamblingSuccessChance", "gamblingMaxPercent", "gamblingMinStreaks", "raidCooldownHours") VALUES ('956307382919647292', bm,ooga booga, 0, Sun Feb 09 2025 22:19:34 GMT+0000 (Coordinated Universal Time), Sun Feb 09 2025 22:47:25 GMT+0000 (Coordinated Universal Time), true, false, false, 20, 30, 40, 50, 50, 10, 24), ('1092548123768930304', bm,grouse, 1440, Mon Feb 10 2025 23:34:45 GMT+0000 (Coordinated Universal Time), Tue Apr 01 2025 20:32:36 GMT+0000 (Coordinated Universal Time), true, true, true, 20, 30, 40, 50, 50, 10, 24)`,
+
+  parameters: {}
+
+}
+
+---
+
+_**Assistant**_
+
+There's a syntax error in your SQL query when trying to insert trigger words. The error is occurring because the trigger words aren't properly formatted as an array in the SQL statement.
+
+The problematic parts are:
+- `bm,ooga booga` 
+- `bm,grouse`
+
+These should be formatted as proper PostgreSQL arrays like `'{"bm", "ooga booga"}'` instead of being directly inserted as unquoted values.
+
+Let's look at how the trigger words are being saved:
+
+---
+
+_****_
+
+<details>
+            <summary>Searched codebase "setTriggerWords function implementation" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `src/storage/streakManager.js` | L839-848 |
+| `src/storage/streakManager.js` | L27-68 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L1944-1988 |
+| `src/storage/streakManager.js` | L848-856 |
+| `src/storage/streakManager.js` | L122-132 |
+| `src/storage/streakManager.js` | L88-122 |
+| `src/commands/setup.js` | L1-49 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L6147-6218 |
+| `src/storage/streakManager.js` | L68-88 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L1887-1944 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L10968-11007 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L2135-2195 |
+| `src/commands/remove.js` | L1-49 |
+| `src/index.js` | L250-287 |
+| `src/commands/setup-embed.js` | L617-631 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L10647-10688 |
+| `src/storage/streakManager.js` | L437-447 |
+| `src/database/models.js` | L22-93 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L10104-10156 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L7609-7655 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L2554-2611 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L9267-9321 |
+| `src/storage/streakManager.js` | L387-409 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L10744-10793 |
+| `src/commands/reset.js` | L26-57 |
+
+</details>
+
+---
+
+_****_
+
+<details>
+            <summary>Searched codebase "GuildConfig model triggerWords" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `src/database/models.js` | L22-93 |
+| `src/storage/streakManager.js` | L27-68 |
+| `src/storage/streakManager.js` | L88-122 |
+| `src/storage/streakManager.js` | L68-88 |
+| `src/database/models.js` | L93-162 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L6147-6218 |
+| `src/storage/streakManager.js` | L122-132 |
+| `src/storage/streakManager.js` | L839-848 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L1944-1988 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L2135-2195 |
+| `src/commands/setup.js` | L1-49 |
+| `src/storage/streakManager.js` | L848-856 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L10968-11007 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L1887-1944 |
+| `src/commands/remove.js` | L1-49 |
+| `src/database/verify.js` | L1-47 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L10647-10688 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L7609-7655 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L727-770 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L9814-9838 |
+| `src/index.js` | L250-287 |
+| `src/storage/streakManager.js` | L387-409 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L3256-3321 |
+| `src/storage/streakManager.js` | L437-447 |
+| `.specstory/history/2025-03-27_00-23-discord-bot-code-review.md` | L26814-26835 |
+
+</details>
+
+---
+
+_****_
+
+<details>
+            <summary>Searched codebase "restoreFromBackup function database/models.js" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `src/database/models.js` | L428-450 |
+| `src/database/models.js` | L414-428 |
+| `src/database/models.js` | L342-363 |
+| `src/database/models.js` | L162-184 |
+| `src/database/models.js` | L450-466 |
+| `src/database/models.js` | L466-474 |
+| `src/database/models.js` | L386-400 |
+| `src/database/models.js` | L363-386 |
+| `src/database/init.js` | L1-25 |
+| `src/database/models.js` | L1-22 |
+| `src/database/models.js` | L400-414 |
+| `src/database/models.js` | L22-93 |
+| `src/database/config.js` | L1-5 |
+| `src/database/models.js` | L93-162 |
+| `src/database/init.js` | L25-41 |
+| `src/database/config.js` | L5-43 |
+| `src/database/models.js` | L259-295 |
+| `src/database/models.js` | L221-259 |
+| `src/database/models.js` | L295-342 |
+| `src/database/verify.js` | L160-172 |
+| `src/database/models.js` | L184-221 |
+| `src/database/verify.js` | L145-160 |
+| `src/index.js` | L65-71 |
+| `src/index.js` | L1-32 |
+| `src/storage/streakManager.js` | L292-297 |
+
+</details>
+
+---
+
+_****_
+
+I can now see the issue with the SQL error. The problem is in the `restoreFromBackup` function where string values aren't properly escaped for SQL.
+
+When trying to insert the array of trigger words, the SQL statement is generating values like `bm,ooga booga` instead of properly formatted array syntax (`'{"bm","ooga booga"}'`) or properly escaped strings.
+
+Let's fix this by modifying the `restoreFromBackup` function to properly handle arrays and escape special characters:
+
+---
+
+_****_
+
+```diff
+          // Restore from backup
+          if (backup && backup.length > 0) {
+-             const columns = Object.keys(backup[0]);
+-             const values = backup.map(row => columns.map(col => row[col]));
++             for (const row of backup) {
++                 const columns = Object.keys(row);
++                 const values = columns.map(col => {
++                     const val = row[col];
++                     
++                     // Handle array values (like triggerWords)
++                     if (Array.isArray(val)) {
++                         return `ARRAY[${val.map(item => `'${escapeSQLString(item)}'`).join(', ')}]::text[]`;
++                     }
++                     
++                     // Handle string values
++                     if (typeof val === 'string') {
++                         return `'${escapeSQLString(val)}'`;
++                     }
++                     
++                     // Handle null values
++                     if (val === null) {
++                         return 'NULL';
++                     }
++                     
++                     // Handle date values
++                     if (val instanceof Date) {
++                         return `'${val.toISOString()}'`;
++                     }
++                     
++                     // Handle other values
++                     return val;
++                 });
+                  
++                 // Insert one row at a time
+                  await sequelize.query(
+-                 `INSERT INTO "${tableName}" (${columns.map(col => `"${col}"`).join(', ')}) VALUES ${values.map(row => `(${row.map(val => typeof val === 'string' ? `'${val}'` : val).join(', ')})`).join(', ')}`,
++                     `INSERT INTO "${tableName}" (${columns.map(col => `"${col}"`).join(', ')}) VALUES (${values.join(', ')})`,
+                      { type: sequelize.QueryTypes.INSERT }
+                  );
++             }
+          }
+      } catch (error) {
+      }
+  }
++ 
++ // Helper function to escape SQL string values
++ function escapeSQLString(str) {
++     if (typeof str !== 'string') return '';
++     return str.replace(/'/g, "''");
++ }
+  
+  async function initializeDatabase() {
+```
+
+---
+
+_****_
+
+The fix I've implemented addresses the SQL syntax error in your database restoration function. Here's what was happening and how I fixed it:
+
+### The Problem:
+When the backup function was trying to restore data, it was generating invalid SQL due to:
+1. Not properly handling arrays (like the `triggerWords` column)
+2. Not properly escaping string values that contain commas or quotes
+3. Attempting to insert all rows at once with complex nested mapping
+
+### The Fix:
+1. **Process Each Row Separately**: Instead of trying to create one giant SQL statement, now the function processes and inserts each row individually.
+
+2. **Proper Type Handling**:
+   - **Arrays**: Now properly formats PostgreSQL arrays using `ARRAY[]::text[]` syntax
+   - **Strings**: Properly escapes single quotes by doubling them
+   - **Null Values**: Explicitly handled with `NULL` keyword
+   - **Dates**: Properly formatted as ISO strings
+   
+3. **Added an SQL Escaping Function**: Created a helper function `escapeSQLString()` to properly handle quotes in string values
+
+This fix ensures that:
+1. Your trigger words arrays will be correctly inserted as PostgreSQL arrays
+2. Special characters in strings won't break the SQL syntax
+3. The database restoration process is more robust
+
+The syntax error you were seeing with "booga" was because the comma-separated list inside the trigger words wasn't being properly treated as an array or escaped as strings. Now each array element is properly quoted and the entire array is properly formatted for PostgreSQL.
 
 ---
 
