@@ -1,15 +1,22 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('refresh')
-        .setDescription('Refreshes all commands')
+        .setDescription('Refresh command data')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
-        try {
-            await interaction.deferReply({ ephemeral: true });
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return await interaction.reply({
+                content: '❌ You need administrator permissions to use this command.',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
+        }
 
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+
+        try {
             const commands = interaction.client.commands;
             let reloadedCount = 0;
 
@@ -25,7 +32,7 @@ module.exports = {
                     console.error(`Error reloading command ${name}:`, error);
                     await interaction.editReply({
                         content: `❌ There was an error while reloading command \`${name}\`:\n\`${error.message}\``,
-                        ephemeral: true
+                        flags: [InteractionResponseFlags.Ephemeral]
                     });
                     return;
                 }
@@ -33,21 +40,14 @@ module.exports = {
 
             await interaction.editReply({
                 content: `✅ Successfully reloaded ${reloadedCount} command(s)!`,
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         } catch (error) {
-            console.error('Error in refresh command:', error);
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ An error occurred while refreshing commands: ${error.message}`,
-                    ephemeral: true
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ An error occurred while refreshing commands: ${error.message}`,
-                    ephemeral: true
-                });
-            }
+            console.error('Error refreshing command data:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while refreshing command data.',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
         }
     },
 }; 

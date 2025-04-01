@@ -1,52 +1,53 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('profile')
-        .setDescription('View your streak profile or another user\'s profile')
+        .setDescription('View your streak profile')
         .addUserOption(option =>
             option.setName('user')
-                .setDescription('The user to view the profile of')
+                .setDescription('User to view profile for (defaults to yourself)')
                 .setRequired(false)),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
-        
-        const targetUser = interaction.options.getUser('user') || interaction.user;
-        const guildId = interaction.guildId;
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
-            const userStreaks = await streakManager.getUserStreaks(guildId, targetUser.id);
+            const targetUser = interaction.options.getUser('user') || interaction.user;
+            const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
             
-            if (!userStreaks || userStreaks.length === 0) {
-                return await interaction.editReply({
-                    content: `${targetUser.username} hasn't earned any streaks yet!`,
-                    ephemeral: true
+            if (!triggerWords || triggerWords.length === 0) {
+                await interaction.editReply({
+                    content: '❌ No trigger words have been set up yet.',
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
+                return;
             }
 
             const embed = new EmbedBuilder()
-                .setColor('#FF6B6B')
+                .setColor('#0099ff')
                 .setTitle(`${targetUser.username}'s Streak Profile`)
-                .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-                .setDescription(`Total Streaks: ${userStreaks.length}`)
-                .addFields(
-                    userStreaks.map(streak => ({
-                        name: `${streak.trigger} 🔥`,
-                        value: `Current Streak: ${streak.count}\nBest Streak: ${streak.best_streak || streak.count}`,
-                        inline: true
-                    }))
-                )
-                .setFooter({ text: `Member since ${targetUser.createdAt.toLocaleDateString()}` })
-                .setTimestamp();
+                .setThumbnail(targetUser.displayAvatarURL());
 
-            await interaction.editReply({ embeds: [embed], ephemeral: true });
+            for (const word of triggerWords) {
+                const streak = await streakManager.getStreak(interaction.guildId, targetUser.id, word);
+                const streakStreak = await streakManager.getStreakStreak(interaction.guildId, targetUser.id, word);
+                
+                let streakInfo = `Current Streak: ${streak || 0}`;
+                if (streakStreak > 1) {
+                    streakInfo += `\nStreak Streak: ${streakStreak} days`;
+                }
+                
+                embed.addFields({ name: `📝 ${word}`, value: streakInfo });
+            }
+
+            await interaction.editReply({ embeds: [embed], flags: [InteractionResponseFlags.Ephemeral] });
         } catch (error) {
-            console.error('Error fetching user profile:', error);
+            console.error('Error showing profile:', error);
             await interaction.editReply({
-                content: '❌ An error occurred while fetching your profile.',
-                ephemeral: true
+                content: '❌ An error occurred while fetching the profile.',
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

@@ -1,49 +1,57 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('reset')
-        .setDescription('Reset all streaks for a user')
+        .setDescription('Reset a user\'s streaks')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addUserOption(option =>
             option.setName('user')
-                .setDescription('The user to reset streaks for')
+                .setDescription('The user to reset')
                 .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+        .addStringOption(option =>
+            option.setName('word')
+                .setDescription('The trigger word to reset (optional)')
+                .setRequired(false)),
 
     async execute(interaction) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
-
-        const targetUser = interaction.options.getUser('user');
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
-            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, targetUser.id);
-            
-            if (!userStreaks || userStreaks.length === 0) {
-                return await interaction.editReply({
-                    content: `${targetUser.username} has no streaks to reset.`,
-                    ephemeral: true
+            const targetUser = interaction.options.getUser('user');
+            const word = interaction.options.getString('word')?.toLowerCase();
+
+            if (word) {
+                // Reset specific trigger word
+                await streakManager.resetStreak(interaction.guildId, targetUser.id, word);
+                await interaction.editReply({
+                    content: `✅ Reset ${targetUser.username}'s streak for "${word}" to 0.`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+            } else {
+                // Reset all trigger words
+                const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
+                for (const triggerWord of triggerWords) {
+                    await streakManager.resetStreak(interaction.guildId, targetUser.id, triggerWord);
+                }
+                await interaction.editReply({
+                    content: `✅ Reset all streaks for ${targetUser.username} to 0.`,
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
-
-            await streakManager.resetUserStreaks(interaction.guildId, targetUser.id);
-            
-            await interaction.editReply({
-                content: `✅ Successfully reset all streaks for ${targetUser.username}.`,
-                ephemeral: true
-            });
         } catch (error) {
-            console.error('Error resetting user streaks:', error);
+            console.error('Error resetting streaks:', error);
             await interaction.editReply({
-                content: '❌ An error occurred while resetting the user\'s streaks.',
-                ephemeral: true
+                content: '❌ An error occurred while resetting the streaks.',
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

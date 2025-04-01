@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -8,97 +8,81 @@ module.exports = {
         .addUserOption(option =>
             option.setName('target')
                 .setDescription('The user to raid')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('word')
+                .setDescription('The trigger word to raid')
                 .setRequired(true)),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        const target = interaction.options.getUser('target');
+        const word = interaction.options.getString('word').toLowerCase();
+
+        if (target.id === interaction.user.id) {
+            return await interaction.reply({
+                content: '❌ You cannot raid yourself!',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
+        }
+
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
-            const targetUser = interaction.options.getUser('target');
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
-
-            // Check if raid is enabled
-            const raidConfig = await streakManager.getRaidConfig(guildId);
-            if (!raidConfig.enabled) {
-                return await interaction.editReply({
-                    content: '❌ Raids are currently disabled in this server.',
-                    ephemeral: true
-                });
-            }
-
-            // Check cooldown
-            const lastRaid = await streakManager.getLastRaidTime(guildId, userId);
-            if (lastRaid && Date.now() - lastRaid < raidConfig.cooldownHours * 3600000) {
-                const remainingTime = Math.ceil((raidConfig.cooldownHours * 3600000 - (Date.now() - lastRaid)) / 3600000);
-                return await interaction.editReply({
-                    content: `❌ You must wait ${remainingTime} more hour(s) before raiding again.`,
-                    ephemeral: true
-                });
-            }
-
-            // Get target's streaks
-            const targetStreaks = await streakManager.getUserStreaks(guildId, targetUser.id);
-            if (!targetStreaks || targetStreaks.length === 0) {
-                return await interaction.editReply({
-                    content: '❌ This user has no streaks to steal.',
-                    ephemeral: true
-                });
-            }
-
-            // Calculate steal amount
-            const totalStreaks = targetStreaks.reduce((sum, streak) => sum + streak.count, 0);
-            const stealAmount = Math.floor(totalStreaks * (raidConfig.maxStealPercent / 100));
-
-            // Calculate success
-            const success = Math.random() * 100 < raidConfig.successChance;
-
-            if (success) {
-                // Successful raid
-                await streakManager.updateUserStreak(guildId, userId, 'raiding', stealAmount);
-                await streakManager.updateUserStreak(guildId, targetUser.id, 'raided', -stealAmount);
-                await streakManager.updateLastRaidTime(guildId, userId);
-
-                const embed = new EmbedBuilder()
-                    .setColor('#00FF00')
-                    .setTitle('⚔️ Raid Successful!')
-                    .setDescription(`You stole ${stealAmount} streaks from ${targetUser.username}!`)
-                    .addFields(
-                        { name: 'Stolen Streaks', value: `+${stealAmount}`, inline: true },
-                        { name: 'Success Chance', value: `${raidConfig.successChance}%`, inline: true }
-                    )
-                    .setTimestamp();
-
+            // Check if raid system is enabled
+            const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+            if (!raidConfig || !raidConfig.enabled) {
                 await interaction.editReply({
-                    embeds: [embed],
-                    ephemeral: true
+                    content: '❌ The raid system is currently disabled in this server.',
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+                return;
+            }
+
+            // Check if user has enough streaks to raid
+            const userStreak = await streakManager.getStreak(interaction.guildId, interaction.user.id, word);
+            if (!userStreak || userStreak < 2) {
+                await interaction.editReply({
+                    content: '❌ You need at least 2 streaks to raid.',
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+                return;
+            }
+
+            // Check if target has enough streaks to be raided
+            const targetStreak = await streakManager.getStreak(interaction.guildId, target.id, word);
+            if (!targetStreak || targetStreak < 2) {
+                await interaction.editReply({
+                    content: `${target.username} doesn't have enough streaks to raid.`,
+                    flags: [InteractionResponseFlags.Ephemeral]
+                });
+                return;
+            }
+
+            // Perform the raid
+            const result = await streakManager.performRaid(
+                interaction.guildId,
+                interaction.user.id,
+                target.id,
+                word,
+                raidConfig
+            );
+
+            if (result.success) {
+                await interaction.editReply({
+                    content: `🎉 Raid successful! You stole ${result.stolenAmount} streaks from ${target.username}!\nYour new streak: ${result.newStreak}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } else {
-                // Failed raid
-                const riskAmount = Math.floor(totalStreaks * (raidConfig.riskPercent / 100));
-                await streakManager.updateUserStreak(guildId, userId, 'raiding', -riskAmount);
-                await streakManager.updateLastRaidTime(guildId, userId);
-
-                const embed = new EmbedBuilder()
-                    .setColor('#FF0000')
-                    .setTitle('💥 Raid Failed!')
-                    .setDescription(`Your raid on ${targetUser.username} failed!`)
-                    .addFields(
-                        { name: 'Lost Streaks', value: `-${riskAmount}`, inline: true },
-                        { name: 'Success Chance', value: `${raidConfig.successChance}%`, inline: true }
-                    )
-                    .setTimestamp();
-
                 await interaction.editReply({
-                    embeds: [embed],
-                    ephemeral: true
+                    content: `💀 Raid failed! You lost ${result.lostAmount} streaks.\nYour new streak: ${result.newStreak}`,
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         } catch (error) {
-            console.error('Error in raid:', error);
+            console.error('Error in raid command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while processing your raid.',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

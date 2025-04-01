@@ -1,104 +1,36 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('toggle_streakstreak')
-        .setDescription('Enable or disable streak streak tracking')
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addBooleanOption(option =>
-            option.setName('enabled')
-                .setDescription('Whether to enable or disable streak streak tracking')
-                .setRequired(true)),
+        .setDescription('Toggle the streak streak feature')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
-        try {
-            // Check if user has administrator permissions
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return await interaction.reply({
-                    content: '❌ You need administrator permissions to use this command.',
-                    ephemeral: true
-                });
-            }
-
-            // Defer reply since this might take a moment
-            await interaction.deferReply({ ephemeral: true });
-
-            const enabled = interaction.options.getBoolean('enabled');
-
-            // Get current status
-            const currentStatus = await streakManager.isStreakStreakEnabled(interaction.guildId);
-
-            // If disabling, show warning
-            if (!enabled && currentStatus) {
-                const warningMessage = '⚠️ **Warning:** Disabling streak streak tracking will:\n' +
-                    '• Stop users from getting additional streaks for maintaining daily streaks\n' +
-                    '• Not affect existing streak streak counts\n' +
-                    '• Allow you to re-enable it later\n\n' +
-                    'Are you sure you want to disable streak streak tracking?';
-
-                await interaction.editReply({
-                    content: warningMessage,
-                    ephemeral: true
-                });
-
-                // Wait for confirmation
-                const filter = i => i.user.id === interaction.user.id;
-                try {
-                    const confirmation = await interaction.channel.awaitMessageComponent({
-                        filter,
-                        time: 30000,
-                        componentType: 2 // Button component
-                    });
-
-                    if (confirmation.customId === 'confirm') {
-                        // Update streak streak status
-                        await streakManager.setStreakStreakEnabled(interaction.guildId, enabled);
-
-                        // Create success message
-                        const message = `✅ Streak streak tracking has been disabled.\n\n` +
-                            `Note: Existing streak streak counts have been preserved.`;
-
-                        await interaction.editReply(message);
-                    } else {
-                        await interaction.editReply({
-                            content: '❌ Operation cancelled.',
-                            ephemeral: true
-                        });
-                    }
-                } catch (error) {
-                    await interaction.editReply({
-                        content: '❌ No confirmation received. Operation cancelled.',
-                        ephemeral: true
-                    });
-                }
-            } else {
-                // Update streak streak status
-                await streakManager.setStreakStreakEnabled(interaction.guildId, enabled);
-
-                // Create response message
-                const status = enabled ? 'enabled' : 'disabled';
-                const message = `✅ Streak streak tracking has been ${status}.\n\n` +
-                    `When enabled, users will get additional streaks for maintaining their daily streaks.`;
-
-                await interaction.editReply(message);
-            }
-
-        } catch (error) {
-            console.error('Error in toggle_streakstreak command:', error);
-            const errorMessage = error.message || 'An error occurred while toggling streak streak tracking.';
-            
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ ${errorMessage}`,
-                    ephemeral: true
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    ephemeral: true
-                });
-            }
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return await interaction.reply({
+                content: '❌ You need administrator permissions to use this command.',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
         }
-    }
+
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+
+        try {
+            const currentStatus = await streakManager.isStreakStreakEnabled(interaction.guildId);
+            await streakManager.setStreakStreakEnabled(interaction.guildId, !currentStatus);
+            
+            await interaction.editReply({
+                content: `✅ Streak streak feature has been ${!currentStatus ? 'enabled' : 'disabled'}.`,
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
+        } catch (error) {
+            console.error('Error toggling streak streak:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while toggling the streak streak feature.',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
+        }
+    },
 }; 

@@ -1,4 +1,5 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { sequelize } = require('../database/models');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,21 +11,20 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
             await interaction.editReply({
                 content: '🔄 Restarting bot...',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
 
             // Close database connection
-            const streakManager = require('../storage/streakManager');
-            await streakManager.closeConnection();
+            await sequelize.close();
 
             // Close Discord client connection
             process.exit(0); // This will trigger the PM2 restart
@@ -32,7 +32,7 @@ module.exports = {
             console.error('Error during restart:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while restarting the bot.',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

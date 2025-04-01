@@ -1,76 +1,42 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setstreak_limit')
-        .setDescription('Set the streak limit for the server')
+        .setDescription('Set how often users can update their streaks')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-        .addStringOption(option =>
-            option.setName('interval')
-                .setDescription('The interval for the streak limit (e.g., 1h, 2h, 1d)')
+        .addIntegerOption(option =>
+            option.setName('hours')
+                .setDescription('Hours between streak updates (1-24)')
+                .setMinValue(1)
+                .setMaxValue(24)
                 .setRequired(true)),
 
     async execute(interaction) {
-        try {
-            // Check if user has administrator permissions
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return await interaction.reply({
-                    content: '❌ You need administrator permissions to use this command.',
-                    ephemeral: true
-                });
-            }
-
-            // Defer reply since this might take a moment
-            await interaction.deferReply({ ephemeral: true });
-
-            const interval = interaction.options.getString('interval');
-            const hours = parseInterval(interval);
-
-            if (hours === null) {
-                return await interaction.editReply({
-                    content: '❌ Invalid interval format. Please use format like "1h", "2h", or "1d".',
-                    ephemeral: true
-                });
-            }
-
-            // Set the streak limit
-            await streakManager.setStreakLimit(interaction.guildId, hours);
-
-            // Create success message
-            const message = `✅ Successfully set streak limit to ${interval}.\n\n` +
-                `Users will now need to wait ${interval} between streak attempts.`;
-
-            await interaction.editReply(message);
-
-        } catch (error) {
-            console.error('Error in setstreak_limit command:', error);
-            const errorMessage = error.message || 'An error occurred while setting the streak limit.';
-            
-            if (interaction.deferred) {
-                await interaction.editReply({
-                    content: `❌ ${errorMessage}`,
-                    ephemeral: true
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    ephemeral: true
-                });
-            }
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return await interaction.reply({
+                content: '❌ You need administrator permissions to use this command.',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
         }
-    }
+
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+
+        try {
+            const hours = interaction.options.getInteger('hours');
+            await streakManager.setStreakLimit(interaction.guildId, hours);
+            
+            await interaction.editReply({
+                content: `✅ Set streak update interval to ${hours} hour${hours !== 1 ? 's' : ''}.`,
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
+        } catch (error) {
+            console.error('Error setting streak limit:', error);
+            await interaction.editReply({
+                content: '❌ An error occurred while setting the streak limit.',
+                flags: [InteractionResponseFlags.Ephemeral]
+            });
+        }
+    },
 };
-
-function parseInterval(interval) {
-    const match = interval.match(/^(\d+)([hd])$/);
-    if (!match) return null;
-
-    const [, amount, unit] = match;
-    const hours = parseInt(amount);
-
-    if (unit === 'd') {
-        return hours * 24;
-    }
-    return hours;
-}

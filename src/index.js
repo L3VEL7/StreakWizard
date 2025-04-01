@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Collection, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const { config } = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -149,12 +149,12 @@ client.on('interactionCreate', async interaction => {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({
                     content: errorMessage,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } else {
                 await interaction.reply({
                     content: errorMessage,
-                    ephemeral: true
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         } catch (replyError) {

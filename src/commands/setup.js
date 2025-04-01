@@ -1,52 +1,48 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup')
-        .setDescription('Configure trigger words for streak tracking')
+        .setDescription('Add a trigger word')
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(option =>
             option.setName('word')
                 .setDescription('The trigger word to add')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('description')
-                .setDescription('Description of what this trigger word represents')
-                .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+                .setRequired(true)),
 
     async execute(interaction) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        const word = interaction.options.getString('word').toLowerCase();
-        const description = interaction.options.getString('description');
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
+            const word = interaction.options.getString('word').toLowerCase();
             const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
-            
-            if (triggerWords.some(tw => tw.trigger === word)) {
-                return await interaction.reply({
-                    content: '❌ This trigger word already exists!',
-                    ephemeral: true
+
+            if (triggerWords && triggerWords.includes(word)) {
+                await interaction.editReply({
+                    content: `❌ "${word}" is already a trigger word.`,
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
+                return;
             }
 
-            await streakManager.addTriggerWord(interaction.guildId, word, description);
-            
-            await interaction.reply({
-                content: `✅ Added trigger word "${word}" with description: ${description}`,
-                ephemeral: true
+            await streakManager.addTriggerWord(interaction.guildId, word);
+            await interaction.editReply({
+                content: `✅ Successfully added "${word}" as a trigger word.`,
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error adding trigger word:', error);
-            await interaction.reply({
+            await interaction.editReply({
                 content: '❌ An error occurred while adding the trigger word.',
-                ephemeral: true
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },
