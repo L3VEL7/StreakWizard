@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -11,11 +11,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
             const currentStatus = await streakManager.isStreakStreakEnabled(interaction.guildId);
@@ -23,13 +23,13 @@ module.exports = {
             
             await interaction.editReply({
                 content: `✅ Streak streak feature has been ${!currentStatus ? 'enabled' : 'disabled'}.`,
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error toggling streak streak:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while toggling the streak streak feature.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

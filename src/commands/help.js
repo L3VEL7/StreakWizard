@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, InteractionResponseFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -6,7 +6,7 @@ module.exports = {
         .setDescription('Show information about available commands'),
 
     async execute(interaction) {
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
             const embed = new EmbedBuilder()
@@ -19,12 +19,12 @@ module.exports = {
                 )
                 .setFooter({ text: 'Use /help <command> for detailed information about a specific command' });
 
-            await interaction.editReply({ embeds: [embed], flags: [InteractionFlags.Ephemeral] });
+            await interaction.editReply({ embeds: [embed], flags: [InteractionResponseFlags.Ephemeral] });
         } catch (error) {
             console.error('Error in help command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while fetching help information.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

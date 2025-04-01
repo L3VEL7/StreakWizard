@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -15,11 +15,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
             const word = interaction.options.getString('word').toLowerCase();
@@ -28,7 +28,7 @@ module.exports = {
             if (!triggerWords || !triggerWords.includes(word)) {
                 await interaction.editReply({
                     content: `❌ The word "${word}" is not a trigger word.`,
-                    flags: [InteractionFlags.Ephemeral]
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
                 return;
             }
@@ -36,13 +36,13 @@ module.exports = {
             await streakManager.removeTriggerWord(interaction.guildId, word);
             await interaction.editReply({
                 content: `✅ Successfully removed "${word}" as a trigger word.`,
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error removing trigger word:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while removing the trigger word.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

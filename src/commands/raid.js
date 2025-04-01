@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -21,11 +21,11 @@ module.exports = {
         if (target.id === interaction.user.id) {
             return await interaction.reply({
                 content: '❌ You cannot raid yourself!',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
             // Check if raid system is enabled
@@ -33,7 +33,7 @@ module.exports = {
             if (!raidConfig || !raidConfig.enabled) {
                 await interaction.editReply({
                     content: '❌ The raid system is currently disabled in this server.',
-                    flags: [InteractionFlags.Ephemeral]
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
                 return;
             }
@@ -43,7 +43,7 @@ module.exports = {
             if (!userStreak || userStreak < 2) {
                 await interaction.editReply({
                     content: '❌ You need at least 2 streaks to raid.',
-                    flags: [InteractionFlags.Ephemeral]
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
                 return;
             }
@@ -53,7 +53,7 @@ module.exports = {
             if (!targetStreak || targetStreak < 2) {
                 await interaction.editReply({
                     content: `${target.username} doesn't have enough streaks to raid.`,
-                    flags: [InteractionFlags.Ephemeral]
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
                 return;
             }
@@ -70,19 +70,19 @@ module.exports = {
             if (result.success) {
                 await interaction.editReply({
                     content: `🎉 Raid successful! You stole ${result.stolenAmount} streaks from ${target.username}!\nYour new streak: ${result.newStreak}`,
-                    flags: [InteractionFlags.Ephemeral]
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             } else {
                 await interaction.editReply({
                     content: `💀 Raid failed! You lost ${result.lostAmount} streaks.\nYour new streak: ${result.newStreak}`,
-                    flags: [InteractionFlags.Ephemeral]
+                    flags: [InteractionResponseFlags.Ephemeral]
                 });
             }
         } catch (error) {
             console.error('Error in raid command:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while processing your raid.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },

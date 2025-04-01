@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, InteractionResponseFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -11,11 +11,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
 
         try {
             // Get current configurations
@@ -67,7 +67,7 @@ module.exports = {
             const message = await interaction.editReply({
                 embeds: [embed],
                 components: [row],
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
 
             // Create a collector for the dropdown menu
@@ -112,7 +112,7 @@ module.exports = {
             console.error('Error creating setup panel:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while creating the configuration panel.',
-                flags: [InteractionFlags.Ephemeral]
+                flags: [InteractionResponseFlags.Ephemeral]
             });
         }
     },
@@ -160,7 +160,7 @@ async function handleCoreConfig(interaction, originalInteraction) {
     await interaction.update({
         embeds: [embed],
         components: [row],
-        flags: [InteractionFlags.Ephemeral]
+        flags: [InteractionResponseFlags.Ephemeral]
     });
 }
 
@@ -221,7 +221,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
     await interaction.update({
         embeds: [embed],
         components: [row],
-        flags: [InteractionFlags.Ephemeral]
+        flags: [InteractionResponseFlags.Ephemeral]
     });
 }
 
@@ -268,6 +268,6 @@ async function handleGamblingConfig(interaction, originalInteraction) {
     await interaction.update({
         embeds: [embed],
         components: [row],
-        flags: [InteractionFlags.Ephemeral]
+        flags: [InteractionResponseFlags.Ephemeral]
     });
 } 
