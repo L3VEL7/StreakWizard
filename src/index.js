@@ -113,6 +113,15 @@ client.once('ready', async () => {
     client.commands.forEach(cmd => console.log(`- ${cmd.data.name}`));
 
     try {
+        // Check if we should skip registration
+        const SKIP_REGISTRATION = process.env.SKIP_REGISTRATION === 'true';
+        
+        if (SKIP_REGISTRATION) {
+            console.log('⚠️ SKIPPING COMMAND REGISTRATION as requested by SKIP_REGISTRATION=true');
+            console.log('Commands will not be updated. Use this only for emergency situations.');
+            return;
+        }
+        
         // Register slash commands
         const commands = [];
         for (const command of client.commands.values()) {
@@ -182,7 +191,7 @@ client.once('ready', async () => {
                 console.log(`Preparing to register commands to ${guildArray.length} guilds (max: ${maxGuildsToProcess})`);
                 
                 // Process guilds in smaller batches for better efficiency
-                const BATCH_SIZE = 3;
+                const BATCH_SIZE = 1; // Process one guild at a time
                 let processedGuilds = 0;
                 
                 for (let i = 0; i < guildArray.length; i += BATCH_SIZE) {
@@ -217,8 +226,8 @@ client.once('ready', async () => {
                     
                     // Add a small delay between batches to avoid rate limiting
                     if (i + BATCH_SIZE < guildArray.length) {
-                        console.log(`Waiting 2 seconds before next batch...`);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        console.log(`Waiting 5 seconds before next batch...`);
+                        await new Promise(resolve => setTimeout(resolve, 5000)); // Longer delay
                     }
                 }
                 
@@ -228,12 +237,18 @@ client.once('ready', async () => {
             // Use a Promise.race with a timeout to prevent getting stuck
             try {
                 const timeout = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Command registration timed out')), 120000)
+                    setTimeout(() => reject(new Error('Command registration timed out')), 240000) // Increase to 4 minutes
                 );
                 
-                console.log('Starting command registration with 2-minute timeout...');
-                const count = await Promise.race([registerCommands(), timeout]);
-                console.log(`✅ Commands registered to ${count} guilds`);
+                console.log('Starting command registration with 4-minute timeout...');
+                let count;
+                try {
+                    count = await Promise.race([registerCommands(), timeout]);
+                    console.log(`✅ Commands registered to ${count} guilds`);
+                } catch (raceError) {
+                    console.error('⚠️ Command registration race error:', raceError);
+                    console.log('Continuing with bot startup anyway...');
+                }
             } catch (timeoutError) {
                 console.error('⚠️ Command registration timed out:', timeoutError);
                 console.log('Continuing with bot startup anyway...');
@@ -249,18 +264,49 @@ client.once('ready', async () => {
                 );
                 
                 console.log('Starting global command registration with 1-minute timeout...');
-                await Promise.race([
-                    rest.put(Routes.applicationCommands(client.user.id), { body: commands }),
-                    timeout
-                ]);
-                console.log('✅ All commands registered globally');
-            } catch (error) {
-                if (error.message.includes('timed out')) {
-                    console.error('⚠️ Global command registration timed out');
-                    console.log('Continuing with bot startup anyway...');
-                } else {
-                    console.error('Error registering global commands:', error);
+                try {
+                    await Promise.race([
+                        rest.put(Routes.applicationCommands(client.user.id), { body: commands }),
+                        timeout
+                    ]);
+                    console.log('✅ All commands registered globally');
+                } catch (raceError) {
+                    console.error('⚠️ Global command registration error:', raceError.message);
+                    
+                    if (raceError.message.includes('timed out')) {
+                        console.log('Trying alternate method with longer timeout...');
+                        
+                        // Try again with a simpler approach and longer timeout
+                        try {
+                            console.log('Making direct API call with 2-minute timeout...');
+                            await new Promise((resolve, reject) => {
+                                const timeoutId = setTimeout(() => {
+                                    console.log('⚠️ Direct API call timed out, but continuing bot startup...');
+                                    resolve(); // Resolve anyway to continue bot startup
+                                }, 120000);
+                                
+                                rest.put(Routes.applicationCommands(client.user.id), { body: commands })
+                                    .then(() => {
+                                        clearTimeout(timeoutId);
+                                        console.log('✅ Commands registered successfully via direct method');
+                                        resolve();
+                                    })
+                                    .catch(err => {
+                                        clearTimeout(timeoutId);
+                                        console.error('❌ Direct method also failed:', err.message);
+                                        // Still resolve to continue bot startup
+                                        resolve();
+                                    });
+                            });
+                        } catch (directError) {
+                            console.error('Error in direct API call:', directError);
+                            console.log('Continuing with bot startup anyway...');
+                        }
+                    }
                 }
+            } catch (error) {
+                console.error('Error registering global commands:', error.message);
+                console.log('Continuing with bot startup anyway...');
             }
         }
     } catch (error) {
