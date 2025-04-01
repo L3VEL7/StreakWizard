@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, InteractionFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -7,14 +7,14 @@ module.exports = {
         .setDescription('View the server\'s streak leaderboard'),
 
     async execute(interaction) {
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
             if (!triggerWords || triggerWords.length === 0) {
                 await interaction.editReply({
                     content: '❌ No trigger words have been set up yet.',
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
                 return;
             }
@@ -38,12 +38,12 @@ module.exports = {
                 }
             }
 
-            await interaction.editReply({ embeds: [embed], flags: [InteractionResponseFlags.Ephemeral] });
+            await interaction.editReply({ embeds: [embed], flags: [InteractionFlags.Ephemeral] });
         } catch (error) {
             console.error('Error showing leaderboard:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while fetching the leaderboard.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },

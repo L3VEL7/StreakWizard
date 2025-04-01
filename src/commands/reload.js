@@ -1,11 +1,11 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('reload')
-        .setDescription('Reload a command')
+        .setDescription('Reloads a command')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addStringOption(option =>
             option.setName('command')
@@ -16,40 +16,40 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
-            const commandName = interaction.options.getString('command').toLowerCase();
-            const command = interaction.client.commands.get(commandName);
+            const commandName = interaction.options.getString('command', true).toLowerCase();
+            const commandPath = path.join(__dirname, `${commandName}.js`);
 
-            if (!command) {
-                await interaction.editReply({
+            if (!fs.existsSync(commandPath)) {
+                return await interaction.editReply({
                     content: `❌ Command \`${commandName}\` not found.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
-                return;
             }
 
+            // Delete the command from the collection
+            delete require.cache[require.resolve(commandPath)];
+
             // Reload the command
-            delete require.cache[require.resolve(`./${commandName}.js`)];
-            interaction.client.commands.delete(commandName);
-            const newCommand = require(`./${commandName}.js`);
-            interaction.client.commands.set(commandName, newCommand);
+            const command = require(commandPath);
+            interaction.client.commands.set(command.data.name, command);
 
             await interaction.editReply({
-                content: `✅ Command \`${commandName}\` has been reloaded!`,
-                flags: [InteractionResponseFlags.Ephemeral]
+                content: `✅ Command \`${commandName}\` was reloaded!`,
+                flags: [InteractionFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error reloading command:', error);
             await interaction.editReply({
-                content: `❌ There was an error while reloading command \`${commandName}\`:\n\`${error.message}\``,
-                flags: [InteractionResponseFlags.Ephemeral]
+                content: `❌ There was an error while reloading command \`${commandName}\`:\n\`\`\`${error.message}\`\`\``,
+                flags: [InteractionFlags.Ephemeral]
             });
         }
-    },
+    }
 }; 

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, InteractionFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 // Rate limiting map
@@ -42,7 +42,7 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
@@ -55,11 +55,11 @@ module.exports = {
         if (!enabled && !maxSteal && !risk && !successChance && !cooldown) {
             return await interaction.reply({
                 content: '❌ Please provide at least one setting to configure.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             const currentConfig = await streakManager.getRaidConfig(interaction.guildId);
@@ -90,13 +90,13 @@ module.exports = {
 
             await interaction.editReply({
                 embeds: [embed],
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error updating raid config:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while updating the raid configuration.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },

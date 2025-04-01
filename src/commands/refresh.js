@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionFlags } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,11 +10,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             const commands = interaction.client.commands;
@@ -32,7 +32,7 @@ module.exports = {
                     console.error(`Error reloading command ${name}:`, error);
                     await interaction.editReply({
                         content: `❌ There was an error while reloading command \`${name}\`:\n\`${error.message}\``,
-                        flags: [InteractionResponseFlags.Ephemeral]
+                        flags: [InteractionFlags.Ephemeral]
                     });
                     return;
                 }
@@ -40,13 +40,13 @@ module.exports = {
 
             await interaction.editReply({
                 content: `✅ Successfully reloaded ${reloadedCount} command(s)!`,
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         } catch (error) {
             console.error('Error refreshing command data:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while refreshing command data.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },

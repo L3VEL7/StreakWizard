@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, PermissionFlagsBits, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, InteractionFlags } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -19,11 +19,11 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
 
-        await interaction.deferReply({ flags: [InteractionResponseFlags.Ephemeral] });
+        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
 
         try {
             const targetUser = interaction.options.getUser('user');
@@ -34,7 +34,7 @@ module.exports = {
                 await streakManager.resetStreak(interaction.guildId, targetUser.id, word);
                 await interaction.editReply({
                     content: `✅ Reset ${targetUser.username}'s streak for "${word}" to 0.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
             } else {
                 // Reset all trigger words
@@ -44,14 +44,14 @@ module.exports = {
                 }
                 await interaction.editReply({
                     content: `✅ Reset all streaks for ${targetUser.username} to 0.`,
-                    flags: [InteractionResponseFlags.Ephemeral]
+                    flags: [InteractionFlags.Ephemeral]
                 });
             }
         } catch (error) {
             console.error('Error resetting streaks:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while resetting the streaks.',
-                flags: [InteractionResponseFlags.Ephemeral]
+                flags: [InteractionFlags.Ephemeral]
             });
         }
     },
