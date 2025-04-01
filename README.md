@@ -14,6 +14,8 @@ A Discord bot that allows tracking user message streaks with advanced features a
 - 🎉 **Milestone Celebrations**: Celebrate streak achievements
 - 📝 **Detailed Statistics**: Track server-wide engagement
 - 💾 **Robust Database**: PostgreSQL backend with automatic migrations and backups
+- 🎲 **Gambling System**: Gamble a percentage of your streaks on coin flips
+- ⚔️ **Raid System**: Challenge other users' streaks with risk and reward
 
 ## Quick Start
 
@@ -66,11 +68,15 @@ After adding the bot to your server:
    - Use `/toggle_streakstreak` to enable/disable streak streak tracking (admin only)
    - Use `/reset` to reset streaks for users or trigger words (admin only)
    - Use `/restart` to restart the bot (admin only)
+   - Use `/configgamble` to configure gambling settings (admin only)
+   - Use `/configraid` to configure raid settings (admin only)
 
 2. **User Commands**
    - Use `/profile` to view your or another user's streak profile
    - Use `/leaderboard` to view rankings for each trigger word
    - Use `/stats` to view server-wide streak statistics
+   - Use `/gamble` to gamble streaks on a coin flip
+   - Use `/raid` to challenge another user's streak
    - Use `/help` to view all available commands
 
 3. **Building Streaks**
@@ -132,6 +138,40 @@ The bot uses various emojis to track and celebrate streaks:
 
 4. **Special Celebrations**
    - 🎉 (Party Popper) for milestone announcements
+
+### Gambling System
+- Gamble a percentage of your streaks on coin flips
+- Configurable by server administrators
+- Win or lose based on coin flip result
+- Minimum streak requirements
+- Rate limiting to prevent abuse
+- Transaction-based updates for safety
+
+### Raid System
+- Challenge other users' streaks
+- Risk a percentage of your streaks to steal from others
+- Configurable settings per server:
+  - Maximum steal percentage (default: 20%)
+  - Risk percentage (default: 30%)
+  - Success chance (default: 40%)
+  - Cooldown period (default: 24 hours)
+- Safety features:
+  - Minimum streak requirements
+  - Rate limiting
+  - Anti-exploit protection
+  - Transaction-based updates
+  - Maximum streak caps
+  - Suspicious activity detection
+
+### Safety Features
+- Rate limiting for all commands
+- Transaction-based updates
+- Anti-exploit protection
+- Input validation
+- Error recovery
+- Detailed logging
+- Configuration validation
+- Maximum limits and caps
 
 ## Database Migration
 

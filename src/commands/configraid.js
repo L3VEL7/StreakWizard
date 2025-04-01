@@ -1,6 +1,9 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
+// Rate limiting map
+const configChangeCooldowns = new Map();
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('configraid')
@@ -45,6 +48,19 @@ module.exports = {
                 });
             }
 
+            // Rate limiting check
+            const now = Date.now();
+            const lastChange = configChangeCooldowns.get(interaction.guildId) || 0;
+            const cooldownPeriod = 5 * 60 * 1000; // 5 minutes
+
+            if (now - lastChange < cooldownPeriod) {
+                const remainingTime = Math.ceil((cooldownPeriod - (now - lastChange)) / 1000 / 60);
+                return await interaction.reply({
+                    content: `❌ Please wait ${remainingTime} minute${remainingTime !== 1 ? 's' : ''} before changing raid configuration again.`,
+                    ephemeral: true
+                });
+            }
+
             // Defer reply since this might take a moment
             await interaction.deferReply();
 
@@ -61,6 +77,16 @@ module.exports = {
             const successChance = interaction.options.getInteger('successchance');
             const cooldown = interaction.options.getInteger('cooldown');
 
+            // Validate configuration changes
+            if (maxSteal !== null && risk !== null && maxSteal > risk) {
+                throw new Error('Maximum steal percentage cannot be higher than risk percentage');
+            }
+
+            if (successChance !== null && (successChance < 1 || successChance > 100)) {
+                throw new Error('Success chance must be between 1 and 100');
+            }
+
+            // Update configuration
             if (enabled !== null) newConfig.enabled = enabled;
             if (maxSteal !== null) newConfig.maxStealPercent = maxSteal;
             if (risk !== null) newConfig.riskPercent = risk;
@@ -70,14 +96,18 @@ module.exports = {
             // Save new configuration
             await streakManager.setRaidConfig(interaction.guildId, newConfig);
 
-            // Create response message
+            // Update rate limit timestamp
+            configChangeCooldowns.set(interaction.guildId, now);
+
+            // Create response message with emojis for better visibility
             const status = newConfig.enabled ? '✅ Enabled' : '❌ Disabled';
-            const message = `**Raid Configuration Updated**\n\n` +
-                `Status: ${status}\n` +
-                `Max Steal: ${newConfig.maxStealPercent}%\n` +
-                `Risk: ${newConfig.riskPercent}%\n` +
-                `Success Chance: ${newConfig.successChance}%\n` +
-                `Cooldown: ${newConfig.cooldownHours} hours`;
+            const message = `**⚔️ Raid Configuration Updated ⚔️**\n\n` +
+                `**Status:** ${status}\n` +
+                `**Max Steal:** ${newConfig.maxStealPercent}% 💰\n` +
+                `**Risk:** ${newConfig.riskPercent}% ⚠️\n` +
+                `**Success Chance:** ${newConfig.successChance}% 🎯\n` +
+                `**Cooldown:** ${newConfig.cooldownHours} hours ⏰\n\n` +
+                `**Note:** Users need at least 2 streaks to raid.`;
 
             await interaction.editReply(message);
 

@@ -495,159 +495,256 @@ module.exports = {
     },
 
     async raidStreak(guildId, attackerId, defenderId, word) {
-        // Start a transaction with SERIALIZABLE isolation level
-        const transaction = await sequelize.transaction({
-            isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
-        });
+        // Input validation
+        if (!guildId || !attackerId || !defenderId || !word) {
+            console.error('Raid attempt failed: Missing parameters', { guildId, attackerId, defenderId, word });
+            throw new Error('Missing required parameters for raid');
+        }
 
-        try {
-            // Get raid configuration
-            const raidConfig = await this.getRaidConfig(guildId);
-            if (!raidConfig.enabled) {
-                throw new Error('Raid feature is not enabled in this server');
-            }
+        if (attackerId === defenderId) {
+            console.warn('Raid attempt blocked: Self-raid attempt', { guildId, userId: attackerId });
+            throw new Error('Cannot raid yourself');
+        }
 
-            // Check cooldown
-            if (!await this.canRaid(guildId, attackerId)) {
-                const lastRaid = await Streak.findOne({
+        if (typeof word !== 'string' || word.trim().length === 0) {
+            console.warn('Raid attempt blocked: Invalid trigger word', { guildId, attackerId, word });
+            throw new Error('Invalid trigger word');
+        }
+
+        let transaction = null;
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 1000; // 1 second
+
+        while (retryCount < MAX_RETRIES) {
+            try {
+                // Start a transaction with SERIALIZABLE isolation level
+                transaction = await sequelize.transaction({
+                    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+                });
+
+                // Get raid configuration
+                const raidConfig = await this.getRaidConfig(guildId);
+                if (!raidConfig.enabled) {
+                    console.warn('Raid attempt blocked: Feature disabled', { guildId, attackerId });
+                    throw new Error('Raid feature is not enabled in this server');
+                }
+
+                // Log raid attempt
+                console.log('Raid attempt initiated', {
+                    guildId,
+                    attackerId,
+                    defenderId,
+                    word: word.trim().toLowerCase(),
+                    timestamp: new Date().toISOString()
+                });
+
+                // Validate configuration values
+                if (raidConfig.maxStealPercent < 1 || raidConfig.maxStealPercent > 100) {
+                    throw new Error('Invalid raid configuration: maxStealPercent must be between 1 and 100');
+                }
+                if (raidConfig.riskPercent < 1 || raidConfig.riskPercent > 100) {
+                    throw new Error('Invalid raid configuration: riskPercent must be between 1 and 100');
+                }
+                if (raidConfig.successChance < 1 || raidConfig.successChance > 100) {
+                    throw new Error('Invalid raid configuration: successChance must be between 1 and 100');
+                }
+                if (raidConfig.cooldownHours < 1 || raidConfig.cooldownHours > 168) {
+                    throw new Error('Invalid raid configuration: cooldownHours must be between 1 and 168');
+                }
+
+                // Check cooldown
+                if (!await this.canRaid(guildId, attackerId)) {
+                    const lastRaid = await Streak.findOne({
+                        where: {
+                            guildId,
+                            userId: attackerId,
+                            lastRaidDate: {
+                                [Op.not]: null
+                            }
+                        }
+                    });
+                    const now = new Date();
+                    const hoursSinceLastRaid = (now - lastRaid.lastRaidDate) / (1000 * 60 * 60);
+                    const remainingHours = Math.ceil(raidConfig.cooldownHours - hoursSinceLastRaid);
+                    throw new Error(`You must wait ${remainingHours} more hour${remainingHours !== 1 ? 's' : ''} before raiding again`);
+                }
+
+                // Anti-exploit: Check for rapid consecutive raids
+                const recentRaids = await Streak.count({
                     where: {
                         guildId,
-                        userId: attackerId,
                         lastRaidDate: {
-                            [Op.not]: null
+                            [Op.gte]: new Date(Date.now() - 5 * 60 * 1000)
                         }
                     }
                 });
-                const now = new Date();
-                const hoursSinceLastRaid = (now - lastRaid.lastRaidDate) / (1000 * 60 * 60);
-                const remainingHours = Math.ceil(raidConfig.cooldownHours - hoursSinceLastRaid);
-                throw new Error(`You must wait ${remainingHours} more hour${remainingHours !== 1 ? 's' : ''} before raiding again`);
-            }
+                if (recentRaids > 10) {
+                    console.warn('Raid attempt blocked: Rate limit exceeded', {
+                        guildId,
+                        attackerId,
+                        recentRaids
+                    });
+                    throw new Error('Too many raids detected. Please wait a few minutes before trying again.');
+                }
 
-            // Anti-exploit: Check for rapid consecutive raids
-            const recentRaids = await Streak.count({
-                where: {
+                // Get attacker's streak with lock
+                const attackerStreak = await Streak.findOne({
+                    where: {
+                        guildId,
+                        userId: attackerId,
+                        triggerWord: word.trim().toLowerCase()
+                    },
+                    lock: transaction.LOCK.UPDATE
+                });
+
+                if (!attackerStreak) {
+                    throw new Error('You need a streak to raid');
+                }
+
+                // Get defender's streak with lock
+                const defenderStreak = await Streak.findOne({
+                    where: {
+                        guildId,
+                        userId: defenderId,
+                        triggerWord: word.trim().toLowerCase()
+                    },
+                    lock: transaction.LOCK.UPDATE
+                });
+
+                if (!defenderStreak) {
+                    throw new Error('Target has no streak to raid');
+                }
+
+                // Anti-exploit: Check for suspicious streak patterns
+                const defenderRecentUpdates = await Streak.count({
+                    where: {
+                        guildId,
+                        userId: defenderId,
+                        lastUpdated: {
+                            [Op.gte]: new Date(Date.now() - 60 * 1000)
+                        }
+                    }
+                });
+                if (defenderRecentUpdates > 5) {
+                    console.warn('Raid attempt blocked: Suspicious defender activity', {
+                        guildId,
+                        attackerId,
+                        defenderId,
+                        recentUpdates: defenderRecentUpdates
+                    });
+                    throw new Error('Target streak is being rapidly updated. Please try again later.');
+                }
+
+                // Prevent raiding if attacker has fewer streaks than defender
+                if (attackerStreak.count < defenderStreak.count * 0.5) {
+                    throw new Error('You need at least 50% of the target\'s streak count to raid');
+                }
+
+                // Anti-exploit: Maximum streak cap for raids
+                const MAX_STREAK_FOR_RAID = 10000;
+                if (defenderStreak.count > MAX_STREAK_FOR_RAID) {
+                    throw new Error('Target streak is too high to raid');
+                }
+
+                // Calculate risk amount
+                const riskAmount = Math.floor(attackerStreak.count * (raidConfig.riskPercent / 100));
+                if (riskAmount < 1) {
+                    throw new Error('Risk amount must be at least 1 streak');
+                }
+
+                // Calculate potential steal amount (weighted towards lower percentages)
+                const stealPercent = Math.min(
+                    raidConfig.maxStealPercent,
+                    Math.floor(Math.random() * raidConfig.maxStealPercent * 0.7) + 1 // 70% chance of being below 70% of max
+                );
+                const stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
+                if (stealAmount < 1) {
+                    throw new Error('Target streak is too low to raid');
+                }
+
+                // Anti-exploit: Maximum steal amount cap
+                const MAX_STEAL_AMOUNT = 1000;
+                if (stealAmount > MAX_STEAL_AMOUNT) {
+                    throw new Error('Maximum steal amount exceeded');
+                }
+
+                // Determine raid success
+                const success = Math.random() * 100 < raidConfig.successChance;
+
+                if (success) {
+                    // Successful raid
+                    attackerStreak.count += stealAmount;
+                    defenderStreak.count -= stealAmount;
+                    if (defenderStreak.count < 1) defenderStreak.count = 1;
+                } else {
+                    // Failed raid
+                    attackerStreak.count -= riskAmount;
+                    if (attackerStreak.count < 1) attackerStreak.count = 1;
+                }
+
+                // Update last raid date
+                attackerStreak.lastRaidDate = new Date();
+
+                // Save changes
+                await attackerStreak.save({ transaction });
+                await defenderStreak.save({ transaction });
+
+                // Commit the transaction
+                await transaction.commit();
+
+                // Log raid result
+                console.log('Raid completed', {
                     guildId,
-                    lastRaidDate: {
-                        [Op.gte]: new Date(Date.now() - 5 * 60 * 1000) // Last 5 minutes
+                    attackerId,
+                    defenderId,
+                    word: word.trim().toLowerCase(),
+                    success,
+                    stealAmount,
+                    riskAmount,
+                    attackerNewCount: attackerStreak.count,
+                    defenderNewCount: defenderStreak.count,
+                    stealPercent,
+                    timestamp: new Date().toISOString()
+                });
+
+                return {
+                    success,
+                    stealAmount,
+                    riskAmount,
+                    attackerNewCount: attackerStreak.count,
+                    defenderNewCount: defenderStreak.count,
+                    stealPercent
+                };
+            } catch (error) {
+                // Log the error
+                console.error(`Raid attempt ${retryCount + 1} failed:`, {
+                    guildId,
+                    attackerId,
+                    defenderId,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+
+                // Rollback the transaction if it exists
+                if (transaction) {
+                    try {
+                        await transaction.rollback();
+                    } catch (rollbackError) {
+                        console.error('Error rolling back transaction:', rollbackError);
                     }
                 }
-            });
-            if (recentRaids > 10) { // More than 10 raids in 5 minutes
-                throw new Error('Too many raids detected. Please wait a few minutes before trying again.');
-            }
 
-            // Get attacker's streak with lock
-            const attackerStreak = await Streak.findOne({
-                where: {
-                    guildId,
-                    userId: attackerId,
-                    triggerWord: word.trim().toLowerCase()
-                },
-                lock: transaction.LOCK.UPDATE
-            });
-
-            if (!attackerStreak) {
-                throw new Error('You need a streak to raid');
-            }
-
-            // Get defender's streak with lock
-            const defenderStreak = await Streak.findOne({
-                where: {
-                    guildId,
-                    userId: defenderId,
-                    triggerWord: word.trim().toLowerCase()
-                },
-                lock: transaction.LOCK.UPDATE
-            });
-
-            if (!defenderStreak) {
-                throw new Error('Target has no streak to raid');
-            }
-
-            // Anti-exploit: Check for suspicious streak patterns
-            const defenderRecentUpdates = await Streak.count({
-                where: {
-                    guildId,
-                    userId: defenderId,
-                    lastUpdated: {
-                        [Op.gte]: new Date(Date.now() - 60 * 1000) // Last minute
-                    }
+                // Check if we should retry
+                if (retryCount < MAX_RETRIES - 1) {
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retryCount)); // Exponential backoff
+                    continue;
                 }
-            });
-            if (defenderRecentUpdates > 5) { // More than 5 streak updates in a minute
-                throw new Error('Target streak is being rapidly updated. Please try again later.');
+
+                // If we've exhausted all retries, throw the error
+                throw new Error(`Failed to complete raid after ${MAX_RETRIES} attempts: ${error.message}`);
             }
-
-            // Prevent raiding if attacker has fewer streaks than defender
-            if (attackerStreak.count < defenderStreak.count * 0.5) {
-                throw new Error('You need at least 50% of the target\'s streak count to raid');
-            }
-
-            // Anti-exploit: Maximum streak cap for raids
-            const MAX_STREAK_FOR_RAID = 10000;
-            if (defenderStreak.count > MAX_STREAK_FOR_RAID) {
-                throw new Error('Target streak is too high to raid');
-            }
-
-            // Calculate risk amount
-            const riskAmount = Math.floor(attackerStreak.count * (raidConfig.riskPercent / 100));
-            if (riskAmount < 1) {
-                throw new Error('Risk amount must be at least 1 streak');
-            }
-
-            // Calculate potential steal amount (weighted towards lower percentages)
-            const stealPercent = Math.min(
-                raidConfig.maxStealPercent,
-                Math.floor(Math.random() * raidConfig.maxStealPercent * 0.7) + 1 // 70% chance of being below 70% of max
-            );
-            const stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
-            if (stealAmount < 1) {
-                throw new Error('Target streak is too low to raid');
-            }
-
-            // Anti-exploit: Maximum steal amount cap
-            const MAX_STEAL_AMOUNT = 1000;
-            if (stealAmount > MAX_STEAL_AMOUNT) {
-                throw new Error('Maximum steal amount exceeded');
-            }
-
-            // Determine raid success
-            const success = Math.random() * 100 < raidConfig.successChance;
-
-            if (success) {
-                // Successful raid
-                attackerStreak.count += stealAmount;
-                defenderStreak.count -= stealAmount;
-                if (defenderStreak.count < 1) defenderStreak.count = 1;
-            } else {
-                // Failed raid
-                attackerStreak.count -= riskAmount;
-                if (attackerStreak.count < 1) attackerStreak.count = 1;
-            }
-
-            // Update last raid date
-            attackerStreak.lastRaidDate = new Date();
-
-            // Save changes
-            await attackerStreak.save({ transaction });
-            await defenderStreak.save({ transaction });
-
-            // Commit the transaction
-            await transaction.commit();
-
-            return {
-                success,
-                stealAmount,
-                riskAmount,
-                attackerNewCount: attackerStreak.count,
-                defenderNewCount: defenderStreak.count,
-                stealPercent
-            };
-        } catch (error) {
-            // Rollback the transaction on error
-            await transaction.rollback();
-            throw error;
         }
     }
 };

@@ -71,6 +71,12 @@ streakwiz/
   triggerWords: string[],   // List of words that trigger streaks
   streakLimit: string,      // Rate limit for streak updates
   streakStreakEnabled: boolean, // Enable/disable streak streaks
+  gamblingEnabled: boolean, // Enable/disable gambling feature
+  raidEnabled: boolean,     // Enable/disable raid feature
+  raidMaxStealPercent: number, // Maximum percentage that can be stolen
+  raidRiskPercent: number,  // Percentage risked on failed raids
+  raidSuccessChance: number, // Chance of successful raid
+  raidCooldownHours: number // Hours between raids
 }
 ```
 
@@ -85,6 +91,7 @@ streakwiz/
   streakStreak: number,    // Consecutive days with streaks
   lastUpdate: Date,        // Last streak update timestamp
   lastStreakDate: Date,    // Last streak streak date
+  lastRaidDate: Date,      // Last raid attempt timestamp
 }
 ```
 
@@ -193,6 +200,104 @@ logger.debug('Debug message', { context });
    }
    ```
 
+3. **Transaction Errors**
+   ```javascript
+   let transaction = null;
+   try {
+     transaction = await sequelize.transaction({
+       isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
+     });
+     // Perform operations
+     await transaction.commit();
+   } catch (error) {
+     if (transaction) {
+       await transaction.rollback();
+     }
+     throw error;
+   }
+   ```
+
+### Safety Features
+
+1. **Rate Limiting**
+   ```javascript
+   const rateLimits = new Map();
+   const checkRateLimit = (guildId, userId, command, limit, window) => {
+     const key = `${guildId}-${userId}-${command}`;
+     const now = Date.now();
+     const lastUse = rateLimits.get(key) || 0;
+     
+     if (now - lastUse < window) {
+       throw new Error(`Please wait ${Math.ceil((window - (now - lastUse)) / 1000)} seconds`);
+     }
+     
+     rateLimits.set(key, now);
+   };
+   ```
+
+2. **Anti-Exploit Protection**
+   ```javascript
+   // Check for suspicious activity
+   const checkSuspiciousActivity = async (guildId, userId, timeWindow) => {
+     const recentUpdates = await Streak.count({
+       where: {
+         guildId,
+         userId,
+         lastUpdated: {
+           [Op.gte]: new Date(Date.now() - timeWindow)
+         }
+       }
+     });
+     
+     return recentUpdates > 5; // More than 5 updates in time window
+   };
+   ```
+
+3. **Input Validation**
+   ```javascript
+   const validateInput = (input, type, constraints) => {
+     switch (type) {
+       case 'percentage':
+         if (input < 1 || input > 100) {
+           throw new Error('Percentage must be between 1 and 100');
+         }
+         break;
+       case 'cooldown':
+         if (input < 1 || input > 168) {
+           throw new Error('Cooldown must be between 1 and 168 hours');
+         }
+         break;
+       // Add more validation types as needed
+     }
+   };
+   ```
+
+### Logging System
+
+```javascript
+// Enhanced logging for raid and gambling operations
+const logOperation = (operation, data) => {
+  const timestamp = new Date().toISOString();
+  const logData = {
+    ...data,
+    timestamp,
+    operation
+  };
+
+  switch (operation) {
+    case 'raid':
+      logger.info('Raid attempt', logData);
+      break;
+    case 'gamble':
+      logger.info('Gambling attempt', logData);
+      break;
+    case 'error':
+      logger.error('Operation failed', logData);
+      break;
+  }
+};
+```
+
 ## Deployment
 
 ### Production Considerations
@@ -238,4 +343,8 @@ logger.debug('Debug message', { context });
 - [ ] Add analytics dashboard
 - [ ] Improve error handling
 - [ ] Add more test coverage
-- [ ] Implement caching system 
+- [ ] Implement caching system
+- [ ] Add raid/gambling statistics tracking
+- [ ] Implement anti-cheat system
+- [ ] Add user reputation system
+- [ ] Create raid/gambling leaderboards 
