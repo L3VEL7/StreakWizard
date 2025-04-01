@@ -577,7 +577,7 @@ async function initializeDatabase() {
         // Then sync the models without altering existing tables
         try {
             await sequelize.sync({ alter: false });
-            console.log('Database synchronized successfully');
+        console.log('Database synchronized successfully');
         } catch (syncError) {
             // Log sync error but don't fail completely
             console.error('Error during model sync:', syncError.message);
@@ -590,7 +590,7 @@ async function initializeDatabase() {
         // Only throw if this is a truly fatal error
         if (error.name === 'SequelizeConnectionError' || 
             error.name === 'SequelizeConnectionRefusedError') {
-            throw error;
+        throw error;
         }
         console.log('Will attempt to continue despite initialization errors');
         return false;

@@ -963,27 +963,40 @@ module.exports = {
 
     // New function to get leaderboard
     async getLeaderboard(guildId, word) {
-        try {
-            const streaks = await Streak.findAll({
-                where: {
-                    guildId,
-                    triggerWord: word.trim().toLowerCase()
-                },
-                order: [['count', 'DESC']],
-                limit: 10 // Immediately limit to top 10 for efficiency
-            });
+        const streaks = await Streak.findAll({
+            where: {
+                guildId,
+                triggerWord: word.trim().toLowerCase()
+            },
+            order: [['count', 'DESC']],
+            limit: 100 // Reasonable limit for leaderboard
+        });
 
-            // Format the results
-            return streaks.map(streak => ({
-                userId: streak.userId,
-                username: streak.userId, // Just use userId as username
-                count: streak.count,
-                streakStreak: streak.streakStreak || 0
-            }));
-        } catch (error) {
-            console.error('Error getting leaderboard:', error);
-            return []; // Return empty array on error
+        // Format the results
+        const results = [];
+        for (const streak of streaks) {
+            try {
+                // Get username from Discord if possible (may not be available in all contexts)
+                let username = streak.userId;
+                results.push({
+                    userId: streak.userId,
+                    username: username,
+                    count: streak.count,
+                    streakStreak: streak.streakStreak || 0
+                });
+            } catch (err) {
+                console.error('Error getting username for leaderboard:', err);
+                // Still include the entry, just with the ID as fallback
+                results.push({
+                    userId: streak.userId,
+                    username: streak.userId,
+                    count: streak.count,
+                    streakStreak: streak.streakStreak || 0
+                });
+            }
         }
+
+        return results;
     },
 
     // New function to get statistics for a trigger word

@@ -34,37 +34,20 @@ module.exports = {
             }
 
             // Delete the command from the collection
-            try {
-                delete require.cache[require.resolve(commandPath)];
-                
-                // Reload the command
-                const command = require(commandPath);
-                
-                // Validate command structure
-                if (!command.data || !command.data.name || !command.execute) {
-                    return await interaction.editReply({
-                        content: `❌ Command \`${commandName}\` has invalid structure.`,
-                        ephemeral: true
-                    });
-                }
-                
-                interaction.client.commands.set(command.data.name, command);
+            delete require.cache[require.resolve(commandPath)];
 
-                await interaction.editReply({
-                    content: `✅ Command \`${commandName}\` was reloaded!`,
-                    ephemeral: true
-                });
-            } catch (loadError) {
-                console.error('Error reloading command:', loadError);
-                await interaction.editReply({
-                    content: `❌ There was an error while reloading command \`${commandName}\`:\n\`\`\`${loadError.message}\`\`\``,
-                    ephemeral: true
-                });
-            }
+            // Reload the command
+            const command = require(commandPath);
+            interaction.client.commands.set(command.data.name, command);
+
+            await interaction.editReply({
+                content: `✅ Command \`${commandName}\` was reloaded!`,
+                ephemeral: true
+            });
         } catch (error) {
             console.error('Error reloading command:', error);
             await interaction.editReply({
-                content: `❌ There was an error while reloading command:\n\`\`\`${error.message}\`\`\``,
+                content: `❌ There was an error while reloading command \`${commandName}\`:\n\`\`\`${error.message}\`\`\``,
                 ephemeral: true
             });
         }
