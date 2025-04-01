@@ -61,6 +61,21 @@ const GuildConfig = sequelize.define('GuildConfig', {
         defaultValue: false,
         allowNull: false
     },
+    gamblingSuccessChance: {
+        type: DataTypes.INTEGER,
+        defaultValue: 50,
+        allowNull: false
+    },
+    gamblingMaxPercent: {
+        type: DataTypes.INTEGER,
+        defaultValue: 50,
+        allowNull: false
+    },
+    gamblingMinStreaks: {
+        type: DataTypes.INTEGER,
+        defaultValue: 10,
+        allowNull: false
+    },
     raidEnabled: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
@@ -79,6 +94,11 @@ const GuildConfig = sequelize.define('GuildConfig', {
     raidSuccessChance: {
         type: DataTypes.INTEGER,
         defaultValue: 40,
+        allowNull: false
+    },
+    raidCooldownHours: {
+        type: DataTypes.INTEGER,
+        defaultValue: 24,
         allowNull: false
     }
 });
@@ -187,6 +207,36 @@ async function migrateDatabase() {
                 console.log('Added gamblingEnabled column to GuildConfigs');
             }
 
+            // Check and add gamblingSuccessChance
+            const hasGamblingSuccessChance = await checkColumnExists('GuildConfigs', 'gamblingSuccessChance');
+            if (!hasGamblingSuccessChance) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"gamblingSuccessChance\" INTEGER NOT NULL DEFAULT 50",
+                    { transaction }
+                );
+                console.log('Added gamblingSuccessChance column to GuildConfigs');
+            }
+
+            // Check and add gamblingMaxPercent
+            const hasGamblingMaxPercent = await checkColumnExists('GuildConfigs', 'gamblingMaxPercent');
+            if (!hasGamblingMaxPercent) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"gamblingMaxPercent\" INTEGER NOT NULL DEFAULT 50",
+                    { transaction }
+                );
+                console.log('Added gamblingMaxPercent column to GuildConfigs');
+            }
+
+            // Check and add gamblingMinStreaks
+            const hasGamblingMinStreaks = await checkColumnExists('GuildConfigs', 'gamblingMinStreaks');
+            if (!hasGamblingMinStreaks) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"gamblingMinStreaks\" INTEGER NOT NULL DEFAULT 10",
+                    { transaction }
+                );
+                console.log('Added gamblingMinStreaks column to GuildConfigs');
+            }
+
             // Check and add raid configuration
             const hasRaidEnabled = await checkColumnExists('GuildConfigs', 'raidEnabled');
             if (!hasRaidEnabled) {
@@ -222,6 +272,16 @@ async function migrateDatabase() {
                     { transaction }
                 );
                 console.log('Added raidSuccessChance column to GuildConfigs');
+            }
+
+            // Check and add raidCooldownHours
+            const hasRaidCooldownHours = await checkColumnExists('GuildConfigs', 'raidCooldownHours');
+            if (!hasRaidCooldownHours) {
+                await sequelize.query(
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidCooldownHours\" INTEGER NOT NULL DEFAULT 24",
+                    { transaction }
+                );
+                console.log('Added raidCooldownHours column to GuildConfigs');
             }
 
             // Migrate Streaks

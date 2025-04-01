@@ -263,16 +263,25 @@ async function handleCoreConfig(interaction, originalInteraction) {
 async function handleRaidConfig(interaction, originalInteraction) {
     const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
     
+    // Ensure default values
+    const config = {
+        enabled: raidConfig.enabled || false,
+        maxStealPercent: raidConfig.maxStealPercent || 20,
+        riskPercent: raidConfig.riskPercent || 30,
+        successChance: raidConfig.successChance || 40,
+        cooldownHours: raidConfig.cooldownHours || 24
+    };
+    
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('⚔️ Raid System Configuration')
         .setDescription('Select a setting to configure:')
         .addFields(
-            { name: 'Enable/Disable', value: `Current: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}` },
-            { name: 'Max Steal', value: `Current: ${raidConfig.maxStealPercent}%` },
-            { name: 'Risk', value: `Current: ${raidConfig.riskPercent}%` },
-            { name: 'Success Chance', value: `Current: ${raidConfig.successChance}%` },
-            { name: 'Cooldown', value: `Current: ${raidConfig.cooldownHours}h` }
+            { name: 'Enable/Disable', value: `Current: ${config.enabled ? '✅ Enabled' : '❌ Disabled'}` },
+            { name: 'Max Steal', value: `Current: ${config.maxStealPercent}%` },
+            { name: 'Risk', value: `Current: ${config.riskPercent}%` },
+            { name: 'Success Chance', value: `Current: ${config.successChance}%` },
+            { name: 'Cooldown', value: `Current: ${config.cooldownHours}h` }
         );
 
     const selectRow = new ActionRowBuilder()
@@ -282,7 +291,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
                 .setPlaceholder('Select a setting')
                 .addOptions([
                     {
-                        label: `Enable/Disable ${raidConfig.enabled ? '✅' : '❌'}`,
+                        label: `Enable/Disable ${config.enabled ? '✅' : '❌'}`,
                         description: 'Toggle raid system',
                         value: 'toggle_raid',
                         emoji: '🔒'
@@ -334,15 +343,23 @@ async function handleRaidConfig(interaction, originalInteraction) {
 async function handleGamblingConfig(interaction, originalInteraction) {
     const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
     
+    // Ensure default values
+    const config = {
+        enabled: gamblingConfig.enabled || false,
+        successChance: gamblingConfig.successChance || 50,
+        maxGamblePercent: gamblingConfig.maxGamblePercent || 50,
+        minStreaks: gamblingConfig.minStreaks || 10
+    };
+    
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('🎲 Gambling System Configuration')
         .setDescription('Select a setting to configure:')
         .addFields(
-            { name: 'Enable/Disable', value: `Current: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}` },
-            { name: 'Success Chance', value: `Current: ${gamblingConfig.successChance || 50}%` },
-            { name: 'Max Gamble Percent', value: `Current: ${gamblingConfig.maxGamblePercent || 50}%` },
-            { name: 'Min Streaks', value: `Current: ${gamblingConfig.minStreaks || 10} streaks` }
+            { name: 'Enable/Disable', value: `Current: ${config.enabled ? '✅ Enabled' : '❌ Disabled'}` },
+            { name: 'Success Chance', value: `Current: ${config.successChance}%` },
+            { name: 'Max Gamble Percent', value: `Current: ${config.maxGamblePercent}%` },
+            { name: 'Min Streaks', value: `Current: ${config.minStreaks} streaks` }
         );
 
     const selectRow = new ActionRowBuilder()
@@ -352,7 +369,7 @@ async function handleGamblingConfig(interaction, originalInteraction) {
                 .setPlaceholder('Select a setting')
                 .addOptions([
                     {
-                        label: `Enable/Disable ${gamblingConfig.enabled ? '✅' : '❌'}`,
+                        label: `Enable/Disable ${config.enabled ? '✅' : '❌'}`,
                         description: 'Toggle gambling system',
                         value: 'toggle_gambling',
                         emoji: '🔒'
@@ -410,7 +427,16 @@ function createBackButton() {
  */
 async function handleToggleGambling(interaction, originalInteraction) {
     try {
-        const currentConfig = await streakManager.getGamblingConfig(interaction.guildId);
+        const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+        
+        // Ensure defaults
+        const currentConfig = {
+            enabled: gamblingConfig.enabled || false,
+            successChance: gamblingConfig.successChance || 50,
+            maxGamblePercent: gamblingConfig.maxGamblePercent || 50,
+            minStreaks: gamblingConfig.minStreaks || 10
+        };
+        
         const newStatus = !currentConfig.enabled;
 
         await streakManager.updateGamblingConfig(interaction.guildId, {
@@ -487,7 +513,17 @@ async function handleGamblingMinStreaks(interaction, originalInteraction) {
  */
 async function handleToggleRaid(interaction, originalInteraction) {
     try {
-        const currentConfig = await streakManager.getRaidConfig(interaction.guildId);
+        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+        
+        // Ensure defaults
+        const currentConfig = {
+            enabled: raidConfig.enabled || false,
+            maxStealPercent: raidConfig.maxStealPercent || 20,
+            riskPercent: raidConfig.riskPercent || 30,
+            successChance: raidConfig.successChance || 40,
+            cooldownHours: raidConfig.cooldownHours || 24
+        };
+        
         const newStatus = !currentConfig.enabled;
 
         await streakManager.updateRaidConfig(interaction.guildId, {
@@ -656,6 +692,22 @@ async function showMainMenu(interaction, guildId) {
         const triggerWords = await streakManager.getTriggerWords(guildId);
         const streakLimit = await streakManager.getStreakLimit(guildId);
 
+        // Ensure default values for any undefined properties
+        const raidDefaults = {
+            enabled: raidConfig.enabled || false,
+            maxStealPercent: raidConfig.maxStealPercent || 20,
+            riskPercent: raidConfig.riskPercent || 30,
+            successChance: raidConfig.successChance || 40,
+            cooldownHours: raidConfig.cooldownHours || 24
+        };
+
+        const gamblingDefaults = {
+            enabled: gamblingConfig.enabled || false,
+            successChance: gamblingConfig.successChance || 50,
+            maxGamblePercent: gamblingConfig.maxGamblePercent || 50,
+            minStreaks: gamblingConfig.minStreaks || 10
+        };
+
         // Create the main embed with current configuration summary
         const embed = new EmbedBuilder()
             .setColor('#0099ff')
@@ -663,8 +715,8 @@ async function showMainMenu(interaction, guildId) {
             .setDescription('Select a feature to configure from the dropdown menu below.')
             .addFields(
                 { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
-                { name: '⚔️ Raid System', value: `Status: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidConfig.maxStealPercent}%\nRisk: ${raidConfig.riskPercent}%\nSuccess Chance: ${raidConfig.successChance}%\nCooldown: ${raidConfig.cooldownHours}h` },
-                { name: '🎲 Gambling System', value: `Status: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
+                { name: '⚔️ Raid System', value: `Status: ${raidDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidDefaults.maxStealPercent}%\nRisk: ${raidDefaults.riskPercent}%\nSuccess Chance: ${raidDefaults.successChance}%\nCooldown: ${raidDefaults.cooldownHours}h` },
+                { name: '🎲 Gambling System', value: `Status: ${gamblingDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingDefaults.successChance}%\nMax Gamble: ${gamblingDefaults.maxGamblePercent}%\nMin Streaks: ${gamblingDefaults.minStreaks}` }
             );
 
         // Create the main feature selection dropdown menu
@@ -681,13 +733,13 @@ async function showMainMenu(interaction, guildId) {
                             emoji: '🎯'
                         },
                         {
-                            label: 'Raid System',
+                            label: `Raid System ${raidDefaults.enabled ? '✅' : '❌'}`,
                             description: 'Configure raid settings and parameters',
                             value: 'raid',
                             emoji: '⚔️'
                         },
                         {
-                            label: 'Gambling System',
+                            label: `Gambling System ${gamblingDefaults.enabled ? '✅' : '❌'}`,
                             description: 'Configure gambling settings and odds',
                             value: 'gambling',
                             emoji: '🎲'
