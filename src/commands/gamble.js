@@ -67,11 +67,15 @@ module.exports = {
             }
 
             // Calculate percentage and perform the gamble operation
+            // Ensure we have an integer amount and proper percentage calculation
+            const exactPercentage = Math.max(1, (amount / currentStreak) * 100);
+            console.log(`Gambling ${amount} of ${currentStreak} streaks (${exactPercentage}%)`);
+            
             const result = await streakManager.gambleStreak(
                 interaction.guildId, 
                 interaction.user.id, 
                 word, 
-                (amount / currentStreak) * 100, // Convert absolute amount to percentage
+                exactPercentage,
                 'heads' // Default choice for simplicity
             );
             

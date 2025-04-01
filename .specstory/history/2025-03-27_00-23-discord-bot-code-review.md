@@ -26995,7 +26995,1834 @@ Now that I've checked the database, let me create a script to fix the issue by a
 
 _****_
 
-Cancelled
+```diff
+- 
++ const { Sequelize } = require('sequelize');
++ const { GuildConfig } = require('./src/database/models');
++ 
++ // Create a connection to the database
++ const sequelize = new Sequelize('postgresql://postgres:HkDdfmzVdJMpCTYUwgzKVWeeSOrIFHmK@viaduct.proxy.rlwy.net:26115/railway', {
++     logging: false
++ });
++ 
++ async function fixTriggerWords() {
++     try {
++         // Test the connection
++         await sequelize.authenticate();
++         console.log('Connection to database established successfully.');
++         
++         // First check what's currently in the GuildConfig
++         const guildId = '1092548123768930304'; // The guild ID from the database records
++         
++         // Get the current config
++         let config = await GuildConfig.findByPk(guildId);
++         console.log("Current trigger words:", config ? config.triggerWords : "No config found");
++         
++         // Collect all distinct trigger words from Streaks table
++         const streakWords = await sequelize.query(
++             'SELECT DISTINCT "triggerWord" FROM "Streaks" WHERE "guildId" = :guildId',
++             {
++                 replacements: { guildId },
++                 type: sequelize.QueryTypes.SELECT
++             }
++         );
++         
++         const triggerWordsFromStreaks = streakWords.map(row => row.triggerWord);
++         console.log("Trigger words found in Streaks table:", triggerWordsFromStreaks);
++         
++         // Update the GuildConfig with the trigger words
++         if (!config) {
++             console.log("Creating new GuildConfig...");
++             config = await GuildConfig.create({
++                 guildId,
++                 triggerWords: triggerWordsFromStreaks
++             });
++         } else {
++             // For existing config, make sure triggerWords is an array
++             let currentWords = [];
++             if (Array.isArray(config.triggerWords)) {
++                 currentWords = config.triggerWords;
++             } else if (config.triggerWords) {
++                 // Try to parse if it's a string
++                 try {
++                     currentWords = config.triggerWords.split(',').map(w => w.trim().toLowerCase());
++                 } catch (e) {
++                     console.error("Could not parse triggerWords:", e);
++                 }
++             }
++             
++             // Combine existing and new words
++             const combinedWords = [...new Set([...currentWords, ...triggerWordsFromStreaks])];
++             console.log("Updated trigger words will be:", combinedWords);
++             
++             // Save back to database
++             await config.update({ triggerWords: combinedWords });
++         }
++         
++         // Verify the update
++         const updatedConfig = await GuildConfig.findByPk(guildId);
++         console.log("Trigger words after update:", updatedConfig.triggerWords);
++         
++         console.log("\nSuccess! The trigger words have been fixed.");
++         console.log("Users should now be able to use these words for streaks.");
++ 
++     } catch (error) {
++         console.error('Error fixing trigger words:', error);
++     } finally {
++         await sequelize.close();
++     }
++ }
++ 
++ fixTriggerWords(); 
+```
+
+---
+
+_****_
+
+Now let's run the script to fix the trigger words:
+
+---
+
+_****_
+
+```bash
+node fix-trigger-words.js
+```
+
+```
+C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\src\database\config.js:9
+    throw new Error('DATABASE_URL environment variable is required');
+    ^
+
+Error: DATABASE_URL environment variable is required
+    at Object.<anonymous> (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\src\database\config.j
+s:9:11)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.require (node:internal/modules/cjs/loader:1311:12)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\src\database\models.j
+s:2:19)
+
+Node.js v22.14.0
+
+```
+
+---
+
+_****_
+
+I see the issue. The script is trying to load the models from the existing codebase, which requires a DATABASE_URL environment variable. Let's modify our approach to use a standalone script that doesn't depend on the project's configuration:
+
+---
+
+_****_
+
+```diff
+  const { Sequelize } = require('sequelize');
+- const { GuildConfig } = require('./src/database/models');
++ 
++ // Database connection string
++ const connectionString = 'postgresql://postgres:HkDdfmzVdJMpCTYUwgzKVWeeSOrIFHmK@viaduct.proxy.rlwy.net:26115/railway';
+  
+  // Create a connection to the database
+- const sequelize = new Sequelize('postgresql://postgres:HkDdfmzVdJMpCTYUwgzKVWeeSOrIFHmK@viaduct.proxy.rlwy.net:26115/railway', {
++ const sequelize = new Sequelize(connectionString, {
+      logging: false
+  });
+          const guildId = '1092548123768930304'; // The guild ID from the database records
+          
+-         // Get the current config
+-         let config = await GuildConfig.findByPk(guildId);
+-         console.log("Current trigger words:", config ? config.triggerWords : "No config found");
++         // Get the current config using direct SQL
++         const configResult = await sequelize.query(
++             'SELECT "guildId", "triggerWords" FROM "GuildConfigs" WHERE "guildId" = :guildId',
++             {
++                 replacements: { guildId },
++                 type: sequelize.QueryTypes.SELECT
++             }
++         );
++         
++         const config = configResult.length > 0 ? configResult[0] : null;
++         console.log("Current trigger words:", config ? JSON.stringify(config.triggerWords) : "No config found");
+          
+          // Collect all distinct trigger words from Streaks table
+          if (!config) {
+              console.log("Creating new GuildConfig...");
+-             config = await GuildConfig.create({
++             await sequelize.query(
++                 'INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt") VALUES (:guildId, :triggerWords, NOW(), NOW())',
++                 {
++                     replacements: { 
+                          guildId, 
+-                 triggerWords: triggerWordsFromStreaks
+-             });
++                         triggerWords: JSON.stringify(triggerWordsFromStreaks)
++                     },
++                     type: sequelize.QueryTypes.INSERT
++                 }
++             );
+          } else {
+-             // For existing config, make sure triggerWords is an array
++             // For existing config, make sure triggerWords is valid
+              let currentWords = [];
+              if (Array.isArray(config.triggerWords)) {
+                  // Try to parse if it's a string
+                  try {
++                     if (typeof config.triggerWords === 'string') {
++                         // Try comma-separated format
+                          currentWords = config.triggerWords.split(',').map(w => w.trim().toLowerCase());
++                     } else {
++                         console.log("triggerWords is not an array or string:", typeof config.triggerWords);
++                     }
+                  } catch (e) {
+                      console.error("Could not parse triggerWords:", e);
+              
+              // Save back to database
+-             await config.update({ triggerWords: combinedWords });
++             await sequelize.query(
++                 'UPDATE "GuildConfigs" SET "triggerWords" = :triggerWords, "updatedAt" = NOW() WHERE "guildId" = :guildId',
++                 {
++                     replacements: { 
++                         guildId, 
++                         triggerWords: JSON.stringify(combinedWords)
++                     },
++                     type: sequelize.QueryTypes.UPDATE
++                 }
++             );
+          }
+          
+          // Verify the update
+-         const updatedConfig = await GuildConfig.findByPk(guildId);
+-         console.log("Trigger words after update:", updatedConfig.triggerWords);
++         const verificationResult = await sequelize.query(
++             'SELECT "guildId", "triggerWords" FROM "GuildConfigs" WHERE "guildId" = :guildId',
++             {
++                 replacements: { guildId },
++                 type: sequelize.QueryTypes.SELECT
++             }
++         );
++         
++         const updatedConfig = verificationResult.length > 0 ? verificationResult[0] : null;
++         console.log("Trigger words after update:", updatedConfig ? JSON.stringify(updatedConfig.triggerWords) : "No config found");
+          
+          console.log("\nSuccess! The trigger words have been fixed.");
+```
+
+---
+
+_****_
+
+Now let's run the updated script:
+
+---
+
+_****_
+
+```bash
+node fix-trigger-words.js
+```
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                node fix-trigger-words.js
+Connection to database established successfully.
+Current trigger words: []
+Trigger words found in Streaks table: [ 'bm', 'grouse' ]
+Updated trigger words will be: [ 'bm', 'grouse' ]
+Error fixing trigger words: Error
+    at Query.run (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\sequelize\lib\dia
+lects\postgres\query.js:50:25)
+    at C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\sequelize\lib\sequelize.js:3
+15:28
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async fixTriggerWords (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\fix-trigger-words.
+js:81:13) {
+  name: 'SequelizeDatabaseError',
+  parent: error: malformed array literal: "["bm","grouse"]"
+      at Parser.parseErrorMessage (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\
+pg-protocol\dist\parser.js:283:98)
+      at Parser.handlePacket (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pr
+otocol\dist\parser.js:122:29)
+      at Parser.parse (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-protocol\
+dist\parser.js:35:38)
+      at Socket.<anonymous> (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pro
+tocol\dist\index.js:11:42)
+      at Socket.emit (node:events:518:28)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    length: 162,
+    severity: 'ERROR',
+    code: '22P02',
+    detail: '"[" must introduce explicitly-specified array dimensions.',
+    hint: undefined,
+    position: '44',
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'arrayfuncs.c',
+    line: '272',
+    routine: 'array_in',
+    sql: `UPDATE "GuildConfigs" SET "triggerWords" = '["bm","grouse"]', "updatedAt" = NOW() WHERE "guildId" 
+= '1092548123768930304'`,
+    parameters: undefined
+  },
+  original: error: malformed array literal: "["bm","grouse"]"
+      at Parser.parseErrorMessage (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\
+pg-protocol\dist\parser.js:283:98)
+      at Parser.handlePacket (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pr
+otocol\dist\parser.js:122:29)
+      at Parser.parse (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-protocol\
+dist\parser.js:35:38)
+      at Socket.<anonymous> (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pro
+tocol\dist\index.js:11:42)
+      at Socket.emit (node:events:518:28)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    length: 162,
+    severity: 'ERROR',
+    code: '22P02',
+    detail: '"[" must introduce explicitly-specified array dimensions.',
+    hint: undefined,
+    position: '44',
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'arrayfuncs.c',
+    line: '272',
+    routine: 'array_in',
+    sql: `UPDATE "GuildConfigs" SET "triggerWords" = '["bm","grouse"]', "updatedAt" = NOW() WHERE "guildId" 
+= '1092548123768930304'`,
+    parameters: undefined
+  },
+  sql: `UPDATE "GuildConfigs" SET "triggerWords" = '["bm","grouse"]', "updatedAt" = NOW() WHERE "guildId" = 
+'1092548123768930304'`,
+  parameters: {}
+}
+
+```
+
+---
+
+_****_
+
+I see the issue. In PostgreSQL, we need to use a specific syntax for arrays. Let's update the script with the correct PostgreSQL array syntax:
+
+---
+
+_****_
+
+```diff
+          if (!config) {
+              console.log("Creating new GuildConfig...");
++             
++             // Create a proper PostgreSQL array string: '{item1,item2,...}'
++             const pgArrayString = `'{${triggerWordsFromStreaks.join(',')}}'`;
++             
+              await sequelize.query(
+-                 'INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt") VALUES (:guildId, :triggerWords, NOW(), NOW())',
++                 `INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt") 
++                  VALUES (:guildId, :triggerWords::text[], NOW(), NOW())`,
+                  {
+                      replacements: { 
+                          guildId, 
+-                         triggerWords: JSON.stringify(triggerWordsFromStreaks)
++                         triggerWords: pgArrayString
+                      },
+                      type: sequelize.QueryTypes.INSERT
+              const combinedWords = [...new Set([...currentWords, ...triggerWordsFromStreaks])];
+              console.log("Updated trigger words will be:", combinedWords);
++             
++             // Create a proper PostgreSQL array string: '{item1,item2,...}'
++             const pgArrayString = `'{${combinedWords.join(',')}}'`;
+              
+              // Save back to database
+              await sequelize.query(
+-                 'UPDATE "GuildConfigs" SET "triggerWords" = :triggerWords, "updatedAt" = NOW() WHERE "guildId" = :guildId',
++                 `UPDATE "GuildConfigs" 
++                  SET "triggerWords" = :triggerWords::text[], "updatedAt" = NOW() 
++                  WHERE "guildId" = :guildId`,
+                  {
+                      replacements: { 
+                          guildId, 
+-                         triggerWords: JSON.stringify(combinedWords)
++                         triggerWords: pgArrayString
+                      },
+                      type: sequelize.QueryTypes.UPDATE
+```
+
+---
+
+_****_
+
+Let's run the updated script:
+
+---
+
+_****_
+
+```bash
+node fix-trigger-words.js
+```
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                node fix-trigger-words.js
+Connection to database established successfully.
+Current trigger words: []
+Trigger words found in Streaks table: [ 'bm', 'grouse' ]
+Updated trigger words will be: [ 'bm', 'grouse' ]
+Error fixing trigger words: Error
+    at Query.run (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\sequelize\lib\dia
+lects\postgres\query.js:50:25)
+    at C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\sequelize\lib\sequelize.js:3
+15:28
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async fixTriggerWords (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\fix-trigger-words.
+js:89:13) {
+  name: 'SequelizeDatabaseError',
+  parent: error: malformed array literal: "'{bm,grouse}'"
+      at Parser.parseErrorMessage (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\
+pg-protocol\dist\parser.js:283:98)
+      at Parser.handlePacket (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pr
+otocol\dist\parser.js:122:29)
+      at Parser.parse (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-protocol\
+dist\parser.js:35:38)
+      at Socket.<anonymous> (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pro
+tocol\dist\index.js:11:42)
+      at Socket.emit (node:events:518:28)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    length: 160,
+    severity: 'ERROR',
+    code: '22P02',
+    detail: 'Array value must start with "{" or dimension information.',
+    hint: undefined,
+    position: '62',
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'arrayfuncs.c',
+    line: '319',
+    routine: 'array_in',
+    sql: 'UPDATE "GuildConfigs" \n' +
+      `                 SET "triggerWords" = '''{bm,grouse}'''::text[], "updatedAt" = NOW() \n` +
+      `                 WHERE "guildId" = '1092548123768930304'`,
+    parameters: undefined
+  },
+  original: error: malformed array literal: "'{bm,grouse}'"
+      at Parser.parseErrorMessage (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\
+pg-protocol\dist\parser.js:283:98)
+      at Parser.handlePacket (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pr
+otocol\dist\parser.js:122:29)
+      at Parser.parse (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-protocol\
+dist\parser.js:35:38)
+      at Socket.<anonymous> (C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version\node_modules\pg-pro
+tocol\dist\index.js:11:42)
+      at Socket.emit (node:events:518:28)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    length: 160,
+    severity: 'ERROR',
+    code: '22P02',
+    detail: 'Array value must start with "{" or dimension information.',
+    hint: undefined,
+    position: '62',
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'arrayfuncs.c',
+    line: '319',
+    routine: 'array_in',
+    sql: 'UPDATE "GuildConfigs" \n' +
+      `                 SET "triggerWords" = '''{bm,grouse}'''::text[], "updatedAt" = NOW() \n` +
+      `                 WHERE "guildId" = '1092548123768930304'`,
+    parameters: undefined
+  },
+  sql: 'UPDATE "GuildConfigs" \n' +
+    `                 SET "triggerWords" = '''{bm,grouse}'''::text[], "updatedAt" = NOW() \n` +
+    `                 WHERE "guildId" = '1092548123768930304'`,
+  parameters: {}
+}
+
+```
+
+---
+
+_****_
+
+I see we're still having issues with the PostgreSQL array syntax. Let's try a different approach using the ARRAY constructor:
+
+---
+
+_****_
+
+```diff
+          console.log("Trigger words found in Streaks table:", triggerWordsFromStreaks);
+          
+-         // Update the GuildConfig with the trigger words
+-         if (!config) {
+-             console.log("Creating new GuildConfig...");
+-             
+-             // Create a proper PostgreSQL array string: '{item1,item2,...}'
+-             const pgArrayString = `'{${triggerWordsFromStreaks.join(',')}}'`;
+-             
+-             await sequelize.query(
+-                 `INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt") 
+-                  VALUES (:guildId, :triggerWords::text[], NOW(), NOW())`,
+-                 {
+-                     replacements: { 
+-                         guildId, 
+-                         triggerWords: pgArrayString
+-                     },
+-                     type: sequelize.QueryTypes.INSERT
+-                 }
+-             );
+-         } else {
+-             // For existing config, make sure triggerWords is valid
+-             let currentWords = [];
+-             if (Array.isArray(config.triggerWords)) {
+-                 currentWords = config.triggerWords;
+-             } else if (config.triggerWords) {
+-                 // Try to parse if it's a string
+-                 try {
+-                     if (typeof config.triggerWords === 'string') {
+-                         // Try comma-separated format
+-                         currentWords = config.triggerWords.split(',').map(w => w.trim().toLowerCase());
+-                     } else {
+-                         console.log("triggerWords is not an array or string:", typeof config.triggerWords);
+-                     }
+-                 } catch (e) {
+-                     console.error("Could not parse triggerWords:", e);
+-                 }
+-             }
+-             
+-             // Combine existing and new words
+-             const combinedWords = [...new Set([...currentWords, ...triggerWordsFromStreaks])];
+-             console.log("Updated trigger words will be:", combinedWords);
++         // Let's directly run a SQL query with proper array syntax
++         // For simplicity, we'll rely on Postgres to do the heavy lifting
++         
++         try {
++             // We'll use a PostgreSQL function to handle updating the array
++             const query = `
++                 UPDATE "GuildConfigs" 
++                 SET "triggerWords" = ARRAY[${triggerWordsFromStreaks.map(word => `'${word}'`).join(', ')}]::text[],
++                     "updatedAt" = NOW()
++                 WHERE "guildId" = :guildId;
++                 
++                 -- If no record exists, insert one
++                 INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt") 
++                 SELECT :guildId, ARRAY[${triggerWordsFromStreaks.map(word => `'${word}'`).join(', ')}]::text[], NOW(), NOW()
++                 WHERE NOT EXISTS (
++                     SELECT 1 FROM "GuildConfigs" WHERE "guildId" = :guildId
++                 );
++             `;
++             
++             console.log("Running query:", query);
++             
++             await sequelize.query(query, {
++                 replacements: { guildId },
++                 type: sequelize.QueryTypes.RAW
++             });
++             
++             console.log("Query executed successfully.");
++         } catch (directError) {
++             console.error("Error executing direct query:", directError);
++             
++             // Fallback to a simpler approach
++             console.log("Trying fallback approach");
+              
+-             // Create a proper PostgreSQL array string: '{item1,item2,...}'
+-             const pgArrayString = `'{${combinedWords.join(',')}}'`;
+-             
+-             // Save back to database
+-             await sequelize.query(
+-                 `UPDATE "GuildConfigs" 
+-                  SET "triggerWords" = :triggerWords::text[], "updatedAt" = NOW() 
+-                  WHERE "guildId" = :guildId`,
+-                 {
+-                     replacements: { 
+-                         guildId, 
+-                         triggerWords: pgArrayString
+-                     },
+-                     type: sequelize.QueryTypes.UPDATE
+-                 }
+-             );
++             // Create a simple query with explicit values
++             const fallbackQuery = `
++                 UPDATE "GuildConfigs" 
++                 SET "triggerWords" = ARRAY['bm', 'grouse']::text[],
++                     "updatedAt" = NOW()
++                 WHERE "guildId" = '${guildId}';
++                 
++                 INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt") 
++                 SELECT '${guildId}', ARRAY['bm', 'grouse']::text[], NOW(), NOW()
++                 WHERE NOT EXISTS (
++                     SELECT 1 FROM "GuildConfigs" WHERE "guildId" = '${guildId}'
++                 );
++             `;
++             
++             console.log("Running fallback query:", fallbackQuery);
++             
++             await sequelize.query(fallbackQuery, {
++                 type: sequelize.QueryTypes.RAW
++             });
++             
++             console.log("Fallback query executed successfully.");
+          }
+          
+```
+
+---
+
+_****_
+
+Let's run the updated script:
+
+---
+
+_****_
+
+```bash
+node fix-trigger-words.js
+```
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                node fix-trigger-words.js
+Connection to database established successfully.
+Current trigger words: []
+Trigger words found in Streaks table: [ 'bm', 'grouse' ]
+Running query: 
+                UPDATE "GuildConfigs"
+                SET "triggerWords" = ARRAY['bm', 'grouse']::text[],
+                    "updatedAt" = NOW()
+                WHERE "guildId" = :guildId;
+
+                -- If no record exists, insert one
+                INSERT INTO "GuildConfigs" ("guildId", "triggerWords", "createdAt", "updatedAt")
+                SELECT :guildId, ARRAY['bm', 'grouse']::text[], NOW(), NOW()
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM "GuildConfigs" WHERE "guildId" = :guildId
+                );
+
+Query executed successfully.
+Trigger words after update: ["bm","grouse"]
+
+Success! The trigger words have been fixed.
+Users should now be able to use these words for streaks.
+
+```
+
+---
+
+_****_
+
+Great! Now let's verify that the trigger words have been correctly added to the GuildConfig table and that streaks for those trigger words exist in the database:
+
+---
+
+_****_
+
+```bash
+node check-db.js
+```
+
+```
+PS C:\Users\info\Documents\GitHub\Streakwiz_PostgreSQL_version> 
+    "lastUpdated": "2025-03-17T22:22:53.006Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1217143177815785563",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T08:21:49.976Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "812082641494868037",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T15:40:17.501Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1082613850991501363",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T15:44:55.437Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "288552333804044288",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-26T11:09:04.938Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "957280491097169931",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-29T17:14:49.961Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "545202687247908875",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T17:12:56.101Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "819927812941152276",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T17:33:48.460Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "751999476540899388",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T19:15:02.290Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1317505531295961188",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T20:23:54.883Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "762263844423729162",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T22:23:54.149Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "380501590735323148",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-22T23:53:30.871Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "598291530662412299",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-19T03:40:31.911Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1120969318054764575",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-19T12:26:54.972Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "881284820662112316",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-26T21:31:15.294Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "988138687214780486",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-20T12:51:57.893Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "470087469916749824",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-20T15:10:16.633Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "826719823781691432",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-21T07:52:45.587Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "971108434596478996",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-21T15:01:31.148Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "197668382588272640",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-21T16:24:58.935Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "825228488800862248",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-22T19:51:23.192Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "777083624688058368",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-22T23:59:23.366Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "992648824797544478",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-23T11:41:43.532Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1276077525050589188",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-24T22:12:37.649Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "468830895726395392",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-27T05:41:10.216Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "734810220802342993",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-18T16:49:28.308Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "930892134922465290",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-13T10:16:32.217Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1192468136939765844",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-10T23:49:49.697Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "942404438482628688",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T03:30:44.290Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1106747516160065626",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T04:26:47.947Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "362994931436093456",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T08:10:27.566Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "427934209277952001",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T09:27:13.231Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "690006445915373700",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T11:33:38.952Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1248699030314418244",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T12:21:12.049Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1118895725749731378",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-11T15:02:56.392Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "711348784319299584",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-14T18:25:30.343Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "458324619829706801",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-13T13:42:49.412Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1190584592453881898",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-12T06:40:44.781Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "722384098307604542",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-12T10:03:45.344Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "931279767792128090",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-12T11:21:15.865Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1154786517865218148",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-17T13:02:25.131Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1093182182861844601",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-13T16:07:39.406Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1185994840387895301",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-13T19:44:34.515Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "798561703813971991",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-13T21:31:21.859Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "482570489425035265",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-15T13:32:13.538Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "767685342890426400",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-15T18:02:38.986Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "631445501610295296",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-14T02:39:33.474Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1048346737280045126",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-15T08:41:18.553Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "442743682706309120",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-18T06:45:22.805Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1280882058197205065",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-19T04:07:28.352Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "253601360036102145",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-20T18:46:55.713Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "880961172256481290",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-28T14:09:18.916Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "802711432990294066",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-20T21:01:02.173Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1226078363249021020",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-21T13:27:53.737Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "434176865624784930",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-30T13:51:51.918Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "888092439095676939",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-21T22:33:25.670Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "825751230809899018",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T08:09:10.747Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "755954155301896235",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-22T20:24:10.083Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1227078004660768880",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-23T01:56:13.683Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "759207260903440404",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-23T07:53:53.003Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "237274178946859009",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-01T13:15:57.563Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1115259316480512022",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T04:53:40.244Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1192844562855645395",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T16:27:29.568Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1004319882051067944",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T08:25:10.016Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "938017625097785404",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T09:19:18.273Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "495803377800970260",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T09:24:33.913Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "971657332834586644",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-24T12:12:33.970Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "611971085247709205",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T09:29:38.600Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "844804689391779860",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-24T22:25:23.042Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "841756246654320650",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T12:20:00.802Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "949446518472073276",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-25T11:46:12.097Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1067301037158965258",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-28T20:32:49.456Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "475469889188921346",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-25T15:05:34.634Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "342759223387750401",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-25T16:18:54.305Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1131858002652168242",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-25T16:54:23.234Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1336284094434119690",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T12:27:54.634Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "917982469561667584",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-28T00:28:35.323Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "900044682405498880",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-26T18:37:05.425Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "904350511686377553",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-26T19:41:08.762Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "757961696076890203",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-26T22:08:12.192Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "773008196502945813",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-27T00:55:44.434Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "404647269556551680",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-28T12:40:05.842Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "400236687789129739",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-02-28T17:48:39.649Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1207431304388546660",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-02T10:40:12.118Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "964806428898521158",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-03T08:48:46.333Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "929518834153570305",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-02T22:41:40.065Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "516719968507789317",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-02T22:54:40.125Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "396944854250422275",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-04T02:16:57.408Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "757648870913081496",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-28T21:34:48.415Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "887857527340007444",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-05T05:59:17.014Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "867055559207288852",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-05T07:26:30.095Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1193645483768426569",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-05T08:40:33.383Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "821786579735019531",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-05T18:35:48.006Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1011631743582863461",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-06T09:08:59.931Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "667046426785742898",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-06T19:02:43.717Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1238040966468862012",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-30T15:43:34.823Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "929145401867653141",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-07T02:07:19.810Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "952169982786150441",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-07T13:19:42.801Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "978829891384541204",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-07T13:40:24.538Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "965989971368484934",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-09T01:00:40.041Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "970599484784537651",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-09T01:50:56.282Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "399011137422753804",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-09T22:37:15.962Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "466134499504160779",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-09T22:43:20.646Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1089593794011332660",
+    "triggerWord": "bm",
+    "count": 1,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-29T06:39:29.920Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "812443285787770961",
+    "triggerWord": "grouse",
+    "count": 32,
+    "streakStreak": 1,
+    "lastUpdated": "2025-04-01T06:39:49.881Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "199518654956699649",
+    "triggerWord": "grouse",
+    "count": 29,
+    "streakStreak": 4,
+    "lastUpdated": "2025-04-01T13:48:48.816Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "833704157302358067",
+    "triggerWord": "grouse",
+    "count": 27,
+    "streakStreak": 3,
+    "lastUpdated": "2025-03-30T20:20:28.952Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "807445605080760331",
+    "triggerWord": "grouse",
+    "count": 25,
+    "streakStreak": 1,
+    "lastUpdated": "2025-04-01T02:46:08.994Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "934303201635737642",
+    "triggerWord": "grouse",
+    "count": 19,
+    "streakStreak": 2,
+    "lastUpdated": "2025-04-01T06:42:15.705Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "936834723165130763",
+    "triggerWord": "grouse",
+    "count": 19,
+    "streakStreak": 2,
+    "lastUpdated": "2025-04-01T12:23:34.334Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "484925421499187201",
+    "triggerWord": "grouse",
+    "count": 17,
+    "streakStreak": 3,
+    "lastUpdated": "2025-04-01T02:52:35.871Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "426205834499063829",
+    "triggerWord": "grouse",
+    "count": 12,
+    "streakStreak": 1,
+    "lastUpdated": "2025-03-31T04:33:54.747Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "368977664775815178",
+    "triggerWord": "grouse",
+    "count": 11,
+    "streakStreak": 1,
+    "lastUpdated": "2025-04-01T14:59:19.608Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "362232011290574848",
+    "triggerWord": "grouse",
+    "count": 7,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-27T00:47:40.318Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "688488937190064133",
+    "triggerWord": "grouse",
+    "count": 4,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-06T22:37:38.337Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "399011137422753804",
+    "triggerWord": "grouse",
+    "count": 2,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-09T22:37:24.125Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "234699144726446080",
+    "triggerWord": "grouse",
+    "count": 2,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-23T21:38:49.917Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "328877337657475073",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-01T18:21:26.062Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1136048416225501214",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-11T08:32:28.664Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "696590952571076660",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-05T01:24:51.354Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1051249272538009681",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-02T10:24:52.031Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "861301772638486529",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-17T14:26:46.965Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "910505879223271464",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-27T20:20:24.626Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "249151252624179201",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-01T18:14:40.720Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1066850836208164874",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-04T22:03:23.511Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "989093022262247475",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-02T12:26:32.927Z"
+  },
+  {
+    "guildId": "1092548123768930304",
+    "userId": "1034183408957542441",
+    "triggerWord": "grouse",
+    "count": 1,
+    "streakStreak": 0,
+    "lastUpdated": "2025-03-01T18:30:54.499Z"
+  }
+]
+
+Checking if trigger words exist in GuildConfigs:
+Guild 1092548123768930304: "bm": Yes, "grouse": Yes
+  All trigger words: ["bm","grouse"]
+
+```
+
+---
+
+_****_
+
+Perfect! The trigger words have been successfully fixed. I can confirm that:
+
+1. The "bm" and "grouse" trigger words are now properly saved in the GuildConfig table
+2. The streaks for these trigger words exist in the database
+3. There are approximately:
+   - 100+ streaks for the trigger word "bm" 
+   - 20+ streaks for the trigger word "grouse"
+
+The fix we implemented:
+1. Connected to the PostgreSQL database
+2. Retrieved all the trigger words from the Streaks table
+3. Updated the GuildConfig table to include these trigger words as a proper PostgreSQL array
+4. Verified that the update was successful
+
+The bot should now properly recognize "bm" and "grouse" as trigger words and increment streaks when users use those words in their messages. This solves the issue where trigger words were not working correctly.
+
+Is there anything else you'd like me to help with or explain?
+
+---
+
+_**User**_
+
+Error adding reactions: TypeError: unlockedAchievements is not iterable
+
+    at handleStreakUpdate (/app/src/index.js:354:39)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+    at async Client.<anonymous> (/app/src/index.js:304:13)
+
+(node:1) Warning: Supplying "ephemeral" for interaction response options is deprecated. Utilize flags instead.
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[DEBUG] Fetching trigger words for guild 1092548123768930304...
+
+[DEBUG] Raw SQL result for trigger words: [{"triggerWords":["bm","grouse"]}]
+
+[DEBUG] Retrieved config for guild 1092548123768930304: {"triggerWords":["bm","grouse"],"guildId":"1092548123768930304","streakLimit":0,"streakStreakEnabled":true,"gamblingEnabled":true,"gamblingSuccessChance":50,"gamblingMaxPercent":50,"gamblingMinStreaks":10,"raidEnabled":true,"raidMaxStealPercent":20,"raidRiskPercent":30,"raidSuccessChance":40,"raidCooldownHours":24,"createdAt":"2025-04-01T20:45:11.125Z","updatedAt":"2025-04-01T21:03:19.191Z"}
+
+[DEBUG] Raw triggerWords value: object ["bm","grouse"]
+
+[DEBUG] Processed trigger words for guild 1092548123768930304: ["bm","grouse"]
+
+Error in gamble command: Error: Gamble amount must be at least 1 streak
+
+    at async Client.<anonymous> (/app/src/index.js:218:9)
+
+while the amount in the gamble command was actually 1
+
+---
+
+_**Assistant**_
+
+I see the issue. There are two separate problems we need to fix:
+
+1. The `unlockedAchievements is not iterable` error in the handleStreakUpdate function
+2. The gamble command rejecting valid bets (saying "must be at least 1 streak" when the amount was actually 1)
+
+Let's fix these one by one:
+
+---
+
+_****_
+
+<details>
+            <summary>Searched codebase "handleStreakUpdate function unlockedAchievements" • **25** results</summary>
+        
+| File | Lines |
+|------|-------|
+| `src/index.js` | L361-393 |
+| `src/index.js` | L312-361 |
+| `src/storage/streakManager.js` | L487-524 |
+| `src/storage/streakManager.js` | L434-487 |
+| `src/storage/streakManager.js` | L268-287 |
+| `src/storage/streakManager.js` | L949-957 |
+| `src/storage/streakManager.js` | L612-622 |
+| `src/storage/streakManager.js` | L1067-1078 |
+| `src/storage/streakManager.js` | L1-27 |
+| `src/storage/streakManager.js` | L287-292 |
+| `src/storage/streakManager.js` | L524-546 |
+| `src/storage/streakManager.js` | L263-268 |
+| `src/storage/streakManager.js` | L575-612 |
+| `src/storage/streakManager.js` | L653-680 |
+| `src/commands/setup-embed.js` | L645-683 |
+| `src/storage/streakManager.js` | L1056-1067 |
+| `src/storage/streakManager.js` | L878-919 |
+| `src/storage/streakManager.js` | L1028-1039 |
+| `src/storage/streakManager.js` | L256-263 |
+| `src/storage/streakManager.js` | L797-842 |
+| `src/storage/streakManager.js` | L995-1028 |
+| `src/storage/streakManager.js` | L372-429 |
+| `src/storage/streakManager.js` | L622-632 |
+| `src/storage/streakManager.js` | L546-575 |
+| `src/storage/streakManager.js` | L1078-1083 |
+
+</details>
 
 ---
 

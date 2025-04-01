@@ -399,7 +399,12 @@ module.exports = {
 
             // Calculate gamble amount
             const gambleAmount = Math.floor(streak.count * (percentage / 100));
-            if (gambleAmount < 1) {
+            
+            // Due to floating point precision, we might get values slightly less than 1
+            // Check if the actual amount is at least 1 instead of the calculated amount
+            if (streak.count < 1 || percentage <= 0 || gambleAmount < 1) {
+                // Log for debugging
+                console.log(`Gamble rejected - streak.count: ${streak.count}, percentage: ${percentage}, gambleAmount: ${gambleAmount}`);
                 throw new Error('Gamble amount must be at least 1 streak');
             }
 

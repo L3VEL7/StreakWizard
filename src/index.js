@@ -314,7 +314,7 @@ client.on('messageCreate', async message => {
 // Helper function to handle streak updates and reactions
 async function handleStreakUpdate(message, result, trigger) {
     try {
-        const { count, streakStreak, milestone, streakStreakMilestone, unlockedAchievements } = result;
+        const { count, streakStreak, milestone, streakStreakMilestone, unlockedAchievements = [] } = result;
         
         // Convert streak number to emoji
         let streakEmoji;
