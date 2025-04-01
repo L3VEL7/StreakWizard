@@ -97,35 +97,24 @@ client.once('ready', async () => {
             commands.push(command.data.toJSON());
         }
 
-        // Register commands globally
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands },
-        );
-        console.log('Successfully registered application commands globally.');
-    } catch (error) {
-        console.error('Error registering application commands:', error);
-        // Attempt to register commands per guild as fallback
-        try {
-            const guilds = await client.guilds.fetch();
-            console.log(`Attempting to register commands in ${guilds.size} guilds...`);
-            for (const [guildId, guild] of guilds) {
-                try {
-                    // Register new commands
-                    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-                    await rest.put(
-                        Routes.applicationGuildCommands(client.user.id, guildId),
-                        { body: commands },
-                    );
-                    console.log(`Successfully registered commands for guild: ${guild.name}`);
-                } catch (guildError) {
-                    console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
-                }
+        // Register commands per guild
+        const guilds = await client.guilds.fetch();
+        console.log(`Registering commands in ${guilds.size} guilds...`);
+        
+        for (const [guildId, guild] of guilds) {
+            try {
+                const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+                await rest.put(
+                    Routes.applicationGuildCommands(client.user.id, guildId),
+                    { body: commands },
+                );
+                console.log(`Successfully registered commands for guild: ${guild.name}`);
+            } catch (guildError) {
+                console.error(`Failed to register commands for guild ${guild.name}:`, guildError);
             }
-        } catch (fallbackError) {
-            console.error('Failed to register commands per guild:', fallbackError);
         }
+    } catch (error) {
+        console.error('Failed to register commands:', error);
     }
 });
 

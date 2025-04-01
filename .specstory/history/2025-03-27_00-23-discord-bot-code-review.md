@@ -22566,6 +22566,18 @@ Please try using the commands again. The error should be resolved. If you still 
 
 ---
 
+_**User**_
+
+i get Unknown Integration on every command... didnt have the issue with this older version @https://github.com/Timm-ServiceDAO/Streakwiz_PostgreSQL_version/tree/main 
+
+---
+
+_**Assistant**_
+
+
+
+---
+
 
 
 ---
