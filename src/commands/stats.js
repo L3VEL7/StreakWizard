@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -7,14 +7,14 @@ module.exports = {
         .setDescription('View server-wide streak statistics'),
 
     async execute(interaction) {
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ ephemeral: true });
 
         try {
             const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
             if (!triggerWords || triggerWords.length === 0) {
                 await interaction.editReply({
                     content: '❌ No trigger words have been set up yet.',
-                    flags: [InteractionFlags.Ephemeral]
+                    ephemeral: true
                 });
                 return;
             }
@@ -34,12 +34,12 @@ module.exports = {
                 }
             }
 
-            await interaction.editReply({ embeds: [embed], flags: [InteractionFlags.Ephemeral] });
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
             console.error('Error showing stats:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while fetching statistics.',
-                flags: [InteractionFlags.Ephemeral]
+                ephemeral: true
             });
         }
     },

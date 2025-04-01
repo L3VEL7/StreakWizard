@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
 
 module.exports = {
@@ -11,7 +11,7 @@ module.exports = {
                 .setRequired(false)),
 
     async execute(interaction) {
-        await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+        await interaction.deferReply({ ephemeral: true });
 
         try {
             const targetUser = interaction.options.getUser('user') || interaction.user;
@@ -20,7 +20,7 @@ module.exports = {
             if (!triggerWords || triggerWords.length === 0) {
                 await interaction.editReply({
                     content: '❌ No trigger words have been set up yet.',
-                    flags: [InteractionFlags.Ephemeral]
+                    ephemeral: true
                 });
                 return;
             }
@@ -42,12 +42,12 @@ module.exports = {
                 embed.addFields({ name: `📝 ${word}`, value: streakInfo });
             }
 
-            await interaction.editReply({ embeds: [embed], flags: [InteractionFlags.Ephemeral] });
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
             console.error('Error showing profile:', error);
             await interaction.editReply({
                 content: '❌ An error occurred while fetching the profile.',
-                flags: [InteractionFlags.Ephemeral]
+                ephemeral: true
             });
         }
     },

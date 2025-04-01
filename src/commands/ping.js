@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, InteractionFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -6,11 +6,11 @@ module.exports = {
         .setDescription('Replies with Pong!'),
     async execute(interaction) {
         try {
-            await interaction.deferReply({ flags: [InteractionFlags.Ephemeral] });
+            await interaction.deferReply({ ephemeral: true });
             
             const sent = await interaction.editReply({ 
                 content: 'Pinging...', 
-                flags: [InteractionFlags.Ephemeral] 
+                ephemeral: true 
             });
 
             const embed = new EmbedBuilder()
@@ -25,13 +25,13 @@ module.exports = {
             await interaction.editReply({ 
                 content: null,
                 embeds: [embed], 
-                flags: [InteractionFlags.Ephemeral] 
+                ephemeral: true 
             });
         } catch (error) {
             console.error('Error in ping command:', error);
             await interaction.reply({ 
                 content: '❌ There was an error while executing this command!', 
-                flags: [InteractionFlags.Ephemeral] 
+                ephemeral: true 
             });
         }
     },
