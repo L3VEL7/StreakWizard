@@ -342,6 +342,42 @@ module.exports = {
                         await handleGamblingConfig(i, interaction);
                         return;
                     }
+
+                    // Add these button handlers for streak limit configuration
+
+                    // Handle Streak Limit buttons
+                    if (i.customId === 'streak_limit_minus3' || i.customId === 'streak_limit_minus1' || 
+                        i.customId === 'streak_limit_plus1' || i.customId === 'streak_limit_plus3' || 
+                        i.customId === 'streak_limit_toggle') {
+                        
+                        // Get current limit in minutes
+                        const currentLimit = await streakManager.getStreakLimit(interaction.guildId);
+                        const currentHours = currentLimit ? Math.floor(currentLimit / 60) : 0;
+                        let newHours = currentHours;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'streak_limit_minus3') newHours = Math.max(0, newHours - 3);
+                        if (i.customId === 'streak_limit_minus1') newHours = Math.max(0, newHours - 1);
+                        if (i.customId === 'streak_limit_plus1') newHours = Math.min(24, newHours + 1);
+                        if (i.customId === 'streak_limit_plus3') newHours = Math.min(24, newHours + 3);
+                        if (i.customId === 'streak_limit_toggle') newHours = currentHours > 0 ? 0 : 1; // Toggle between 0 and 1 hour
+                        
+                        // Convert hours to minutes for storage
+                        const newMinutes = newHours * 60;
+                        
+                        // Update the config
+                        await streakManager.setStreakLimit(interaction.guildId, newMinutes);
+                        
+                        // Show the updated config
+                        await handleStreakLimit(i, interaction);
+                        return;
+                    }
+
+                    // Add back button handler for core config
+                    if (i.customId === 'back_to_core_config') {
+                        await handleCoreConfig(i, interaction);
+                        return;
+                    }
                 } catch (error) {
                     console.error('Error handling configuration:', error);
                     await i.update({
@@ -1109,15 +1145,66 @@ async function handleTriggerWords(interaction, originalInteraction) {
 }
 
 /**
- * Configure streak limits (not implemented yet)
+ * Configure streak limits
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleStreakLimit(interaction, originalInteraction) {
-    // Implementation needed
+    // Get current streak limit
+    const currentLimit = await streakManager.getStreakLimit(interaction.guildId);
+    const currentHours = currentLimit ? Math.floor(currentLimit / 60) : 0;
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('⏰ Streak Update Interval')
+        .setDescription('Set how frequently users can update their streaks.')
+        .addFields(
+            { name: 'Current Setting', value: currentLimit ? `${currentHours} hour${currentHours !== 1 ? 's' : ''} (${currentLimit} minutes)` : 'No limit (0)' },
+            { name: 'Recommended', value: 'Between 1 and 12 hours' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value in hours (will be converted to minutes internally)' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('streak_limit_minus3')
+                .setLabel('-3 hours')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('streak_limit_minus1')
+                .setLabel('-1 hour')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('streak_limit_plus1')
+                .setLabel('+1 hour')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('streak_limit_plus3')
+                .setLabel('+3 hours')
+                .setStyle(ButtonStyle.Success)
+        );
+    
+    const toggleRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('streak_limit_toggle')
+                .setLabel(currentLimit > 0 ? 'Disable Limit' : 'Enable Limit (1 hour)')
+                .setStyle(currentLimit > 0 ? ButtonStyle.Danger : ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_core_config')
+                .setLabel('Back to Core Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
     await interaction.update({
-        content: '❌ This feature is not implemented yet.',
+        embeds: [embed],
+        components: [row, toggleRow, backRow],
         ephemeral: true
     });
 }

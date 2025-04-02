@@ -966,23 +966,21 @@ module.exports = {
         try {
             const streaks = await Streak.findAll({
                 where: {
-                    guildId,
+                    guildId: guildId,
                     triggerWord: word.trim().toLowerCase()
                 },
                 order: [['count', 'DESC']],
-                limit: 10 // Immediately limit to top 10 for efficiency
+                limit: 10 // Just get top 10 directly from database
             });
 
-            // Format the results
+            // Map to array of objects with userId and count
             return streaks.map(streak => ({
                 userId: streak.userId,
-                username: streak.userId, // Just use userId as username
-                count: streak.count,
-                streakStreak: streak.streakStreak || 0
+                count: streak.count
             }));
         } catch (error) {
             console.error('Error getting leaderboard:', error);
-            return []; // Return empty array on error
+            return [];
         }
     },
 

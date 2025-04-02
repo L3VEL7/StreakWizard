@@ -32,6 +32,21 @@ module.exports = {
                     // Format entries - top 10 only
                     const leaderboardEntries = leaderboard.slice(0, 10);
                     
+                    // Fetch user information for each entry
+                    for (const entry of leaderboardEntries) {
+                        try {
+                            // Try to fetch the user from Discord
+                            const user = await interaction.client.users.fetch(entry.userId);
+                            if (user) {
+                                entry.username = user.username;
+                            }
+                        } catch (userError) {
+                            console.warn(`Could not fetch user ${entry.userId}:`, userError);
+                            // Use userId as username if fetch fails
+                            entry.username = entry.userId;
+                        }
+                    }
+                    
                     // Simple formatting with numbers/medals
                     const leaderboardText = leaderboardEntries
                         .map((entry, index) => {
@@ -41,7 +56,6 @@ module.exports = {
                             else if (index === 2) prefix = '🥉';
                             else prefix = `${index + 1}.`;
                             
-                            // Try to fetch username or use userId as fallback
                             return `${prefix} ${entry.username}: ${entry.count} streaks`;
                         })
                         .join('\n');

@@ -8,7 +8,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addIntegerOption(option =>
             option.setName('hours')
-                .setDescription('Hours between streak updates (1-24)')
+                .setDescription('Hours between streak updates (1-24, will be converted to minutes)')
                 .setMinValue(1)
                 .setMaxValue(24)
                 .setRequired(true)),
@@ -25,10 +25,13 @@ module.exports = {
 
         try {
             const hours = interaction.options.getInteger('hours');
-            await streakManager.setStreakLimit(interaction.guildId, hours);
+            // Convert hours to minutes for storage
+            const minutes = hours * 60;
+            
+            await streakManager.setStreakLimit(interaction.guildId, minutes);
             
             await interaction.editReply({
-                content: `✅ Set streak update interval to ${hours} hour${hours !== 1 ? 's' : ''}.`,
+                content: `✅ Set streak update interval to ${hours} hour${hours !== 1 ? 's' : ''} (${minutes} minutes).`,
                 ephemeral: true
             });
         } catch (error) {
