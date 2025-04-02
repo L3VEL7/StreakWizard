@@ -167,6 +167,181 @@ module.exports = {
                                 break;
                         }
                     }
+
+                    // Handle Max Steal buttons
+                    if (i.customId === 'raid_maxsteal_minus10' || i.customId === 'raid_maxsteal_minus5' || 
+                        i.customId === 'raid_maxsteal_plus5' || i.customId === 'raid_maxsteal_plus10') {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let newValue = raidConfig.maxStealPercent || 20;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'raid_maxsteal_minus10') newValue = Math.max(1, newValue - 10);
+                        if (i.customId === 'raid_maxsteal_minus5') newValue = Math.max(1, newValue - 5);
+                        if (i.customId === 'raid_maxsteal_plus5') newValue = Math.min(100, newValue + 5);
+                        if (i.customId === 'raid_maxsteal_plus10') newValue = Math.min(100, newValue + 10);
+                        
+                        // Update the config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            maxStealPercent: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleRaidMaxSteal(i, interaction);
+                        return;
+                    }
+
+                    // Handle Risk buttons
+                    if (i.customId === 'raid_risk_minus10' || i.customId === 'raid_risk_minus5' || 
+                        i.customId === 'raid_risk_plus5' || i.customId === 'raid_risk_plus10') {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let newValue = raidConfig.riskPercent || 30;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'raid_risk_minus10') newValue = Math.max(1, newValue - 10);
+                        if (i.customId === 'raid_risk_minus5') newValue = Math.max(1, newValue - 5);
+                        if (i.customId === 'raid_risk_plus5') newValue = Math.min(100, newValue + 5);
+                        if (i.customId === 'raid_risk_plus10') newValue = Math.min(100, newValue + 10);
+                        
+                        // Update the config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            riskPercent: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleRaidRisk(i, interaction);
+                        return;
+                    }
+
+                    // Handle Success Chance buttons
+                    if (i.customId === 'raid_success_minus10' || i.customId === 'raid_success_minus5' || 
+                        i.customId === 'raid_success_plus5' || i.customId === 'raid_success_plus10') {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let newValue = raidConfig.successChance || 40;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'raid_success_minus10') newValue = Math.max(1, newValue - 10);
+                        if (i.customId === 'raid_success_minus5') newValue = Math.max(1, newValue - 5);
+                        if (i.customId === 'raid_success_plus5') newValue = Math.min(100, newValue + 5);
+                        if (i.customId === 'raid_success_plus10') newValue = Math.min(100, newValue + 10);
+                        
+                        // Update the config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            successChance: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleRaidSuccessChance(i, interaction);
+                        return;
+                    }
+
+                    // Handle Cooldown buttons
+                    if (i.customId === 'raid_cooldown_minus6' || i.customId === 'raid_cooldown_minus1' || 
+                        i.customId === 'raid_cooldown_plus1' || i.customId === 'raid_cooldown_plus6') {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let newValue = raidConfig.cooldownHours || 24;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'raid_cooldown_minus6') newValue = Math.max(1, newValue - 6);
+                        if (i.customId === 'raid_cooldown_minus1') newValue = Math.max(1, newValue - 1);
+                        if (i.customId === 'raid_cooldown_plus1') newValue = Math.min(168, newValue + 1); // Max 1 week
+                        if (i.customId === 'raid_cooldown_plus6') newValue = Math.min(168, newValue + 6);
+                        
+                        // Update the config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            cooldownHours: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleRaidCooldown(i, interaction);
+                        return;
+                    }
+
+                    // Add a handler for the back button
+                    if (i.customId === 'back_to_raid_config') {
+                        await handleRaidConfig(i, interaction);
+                        return;
+                    }
+
+                    // Add these button handlers for gambling configuration
+
+                    // Handle Gambling Success Chance buttons
+                    if (i.customId === 'gambling_success_minus10' || i.customId === 'gambling_success_minus5' || 
+                        i.customId === 'gambling_success_plus5' || i.customId === 'gambling_success_plus10') {
+                        const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+                        let newValue = gamblingConfig.successChance || 50;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'gambling_success_minus10') newValue = Math.max(1, newValue - 10);
+                        if (i.customId === 'gambling_success_minus5') newValue = Math.max(1, newValue - 5);
+                        if (i.customId === 'gambling_success_plus5') newValue = Math.min(99, newValue + 5);
+                        if (i.customId === 'gambling_success_plus10') newValue = Math.min(99, newValue + 10);
+                        
+                        // Update the config
+                        await streakManager.updateGamblingConfig(interaction.guildId, {
+                            ...gamblingConfig,
+                            successChance: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleGamblingSuccessChance(i, interaction);
+                        return;
+                    }
+
+                    // Handle Max Gamble Percent buttons
+                    if (i.customId === 'gambling_max_minus10' || i.customId === 'gambling_max_minus5' || 
+                        i.customId === 'gambling_max_plus5' || i.customId === 'gambling_max_plus10') {
+                        const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+                        let newValue = gamblingConfig.maxGamblePercent || 50;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'gambling_max_minus10') newValue = Math.max(1, newValue - 10);
+                        if (i.customId === 'gambling_max_minus5') newValue = Math.max(1, newValue - 5);
+                        if (i.customId === 'gambling_max_plus5') newValue = Math.min(100, newValue + 5);
+                        if (i.customId === 'gambling_max_plus10') newValue = Math.min(100, newValue + 10);
+                        
+                        // Update the config
+                        await streakManager.updateGamblingConfig(interaction.guildId, {
+                            ...gamblingConfig,
+                            maxGamblePercent: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleGamblingMaxPercent(i, interaction);
+                        return;
+                    }
+
+                    // Handle Min Streaks buttons
+                    if (i.customId === 'gambling_min_minus5' || i.customId === 'gambling_min_minus1' || 
+                        i.customId === 'gambling_min_plus1' || i.customId === 'gambling_min_plus5') {
+                        const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+                        let newValue = gamblingConfig.minStreaks || 10;
+                        
+                        // Adjust the value based on which button was clicked
+                        if (i.customId === 'gambling_min_minus5') newValue = Math.max(1, newValue - 5);
+                        if (i.customId === 'gambling_min_minus1') newValue = Math.max(1, newValue - 1);
+                        if (i.customId === 'gambling_min_plus1') newValue = Math.min(100, newValue + 1);
+                        if (i.customId === 'gambling_min_plus5') newValue = Math.min(100, newValue + 5);
+                        
+                        // Update the config
+                        await streakManager.updateGamblingConfig(interaction.guildId, {
+                            ...gamblingConfig,
+                            minStreaks: newValue
+                        });
+                        
+                        // Show the updated config
+                        await handleGamblingMinStreaks(i, interaction);
+                        return;
+                    }
+
+                    // Add back button handler for gambling config
+                    if (i.customId === 'back_to_gambling_config') {
+                        await handleGamblingConfig(i, interaction);
+                        return;
+                    }
                 } catch (error) {
                     console.error('Error handling configuration:', error);
                     await i.update({
@@ -472,36 +647,171 @@ async function handleToggleGambling(interaction, originalInteraction) {
 }
 
 /**
- * Configure gambling success chance (not implemented yet)
+ * Configure gambling success chance
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleGamblingSuccessChance(interaction, originalInteraction) {
-    // For now just return to gambling config
-    await handleGamblingConfig(interaction, originalInteraction);
+    // Get current configuration
+    const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('🎯 Gambling Success Chance Configuration')
+        .setDescription('Set the percentage chance of winning when gambling.')
+        .addFields(
+            { name: 'Current Setting', value: `${gamblingConfig.successChance || 50}%` },
+            { name: 'Recommended', value: 'Between 40% and 60%' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('gambling_success_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('gambling_success_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('gambling_success_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('gambling_success_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_gambling_config')
+                .setLabel('Back to Gambling Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
+    await interaction.update({
+        embeds: [embed],
+        components: [row, backRow],
+        ephemeral: true
+    });
 }
 
 /**
- * Configure maximum gambling percentage (not implemented yet)
+ * Configure maximum gambling percentage
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleGamblingMaxPercent(interaction, originalInteraction) {
-    // For now just return to gambling config
-    await handleGamblingConfig(interaction, originalInteraction);
+    // Get current configuration
+    const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('💰 Max Gambling Percentage Configuration')
+        .setDescription('Set the maximum percentage of streaks that can be gambled at once.')
+        .addFields(
+            { name: 'Current Setting', value: `${gamblingConfig.maxGamblePercent || 50}%` },
+            { name: 'Recommended', value: 'Between 25% and 75%' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('gambling_max_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('gambling_max_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('gambling_max_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('gambling_max_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_gambling_config')
+                .setLabel('Back to Gambling Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
+    await interaction.update({
+        embeds: [embed],
+        components: [row, backRow],
+        ephemeral: true
+    });
 }
 
 /**
- * Configure minimum streaks required for gambling (not implemented yet)
+ * Configure minimum streaks required for gambling
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleGamblingMinStreaks(interaction, originalInteraction) {
-    // For now just return to gambling config
-    await handleGamblingConfig(interaction, originalInteraction);
+    // Get current configuration
+    const gamblingConfig = await streakManager.getGamblingConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('📊 Minimum Streaks Configuration')
+        .setDescription('Set the minimum number of streaks required to gamble.')
+        .addFields(
+            { name: 'Current Setting', value: `${gamblingConfig.minStreaks || 10} streaks` },
+            { name: 'Recommended', value: 'Between 5 and 20 streaks' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('gambling_min_minus5')
+                .setLabel('-5')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('gambling_min_minus1')
+                .setLabel('-1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('gambling_min_plus1')
+                .setLabel('+1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('gambling_min_plus5')
+                .setLabel('+5')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_gambling_config')
+                .setLabel('Back to Gambling Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
+    await interaction.update({
+        embeds: [embed],
+        components: [row, backRow],
+        ephemeral: true
+    });
 }
 
 /**
@@ -561,57 +871,225 @@ async function handleToggleRaid(interaction, originalInteraction) {
 }
 
 /**
- * Configure maximum raid steal percentage (not implemented yet)
+ * Configure maximum raid steal percentage
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleRaidMaxSteal(interaction, originalInteraction) {
-    // Implementation needed
+    // Get current configuration
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('⚔️ Raid Max Steal Configuration')
+        .setDescription('Set the maximum percentage of streaks that can be stolen in a successful raid.')
+        .addFields(
+            { name: 'Current Setting', value: `${raidConfig.maxStealPercent || 20}%` },
+            { name: 'Recommended', value: 'Between 10% and 30%' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_maxsteal_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('raid_maxsteal_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_maxsteal_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_maxsteal_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
     await interaction.update({
-        content: '❌ This feature is not implemented yet.',
+        embeds: [embed],
+        components: [row, backRow],
         ephemeral: true
     });
 }
 
 /**
- * Configure raid risk percentage (not implemented yet)
+ * Configure raid risk percentage
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleRaidRisk(interaction, originalInteraction) {
-    // Implementation needed
+    // Get current configuration
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('⚠️ Raid Risk Configuration')
+        .setDescription('Set the percentage of streaks that will be lost on a failed raid.')
+        .addFields(
+            { name: 'Current Setting', value: `${raidConfig.riskPercent || 30}%` },
+            { name: 'Recommended', value: 'Between 20% and 50%' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_risk_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
     await interaction.update({
-        content: '❌ This feature is not implemented yet.',
+        embeds: [embed],
+        components: [row, backRow],
         ephemeral: true
     });
 }
 
 /**
- * Configure raid success chance (not implemented yet)
+ * Configure raid success chance
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleRaidSuccessChance(interaction, originalInteraction) {
-    // Implementation needed
+    // Get current configuration
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('🎯 Raid Success Chance Configuration')
+        .setDescription('Set the percentage chance of a raid being successful.')
+        .addFields(
+            { name: 'Current Setting', value: `${raidConfig.successChance || 40}%` },
+            { name: 'Recommended', value: 'Between 30% and 60%' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_success_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('raid_success_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_success_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_success_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
     await interaction.update({
-        content: '❌ This feature is not implemented yet.',
+        embeds: [embed],
+        components: [row, backRow],
         ephemeral: true
     });
 }
 
 /**
- * Configure raid cooldown period (not implemented yet)
+ * Configure raid cooldown period
  * 
  * @param {Interaction} interaction - The Discord interaction
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleRaidCooldown(interaction, originalInteraction) {
-    // Implementation needed
+    // Get current configuration
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('⏰ Raid Cooldown Configuration')
+        .setDescription('Set the cooldown period in hours between raids.')
+        .addFields(
+            { name: 'Current Setting', value: `${raidConfig.cooldownHours || 24} hours` },
+            { name: 'Recommended', value: 'Between 1 and 48 hours' },
+            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+        );
+    
+    // Create buttons for adjusting the value
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_cooldown_minus6')
+                .setLabel('-6 hours')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('raid_cooldown_minus1')
+                .setLabel('-1 hour')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_cooldown_plus1')
+                .setLabel('+1 hour')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_cooldown_plus6')
+                .setLabel('+6 hours')
+                .setStyle(ButtonStyle.Success)
+        );
+        
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
     await interaction.update({
-        content: '❌ This feature is not implemented yet.',
+        embeds: [embed],
+        components: [row, backRow],
         ephemeral: true
     });
 }
