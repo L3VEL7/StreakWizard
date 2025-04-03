@@ -75,7 +75,7 @@ module.exports = {
                 });
             } else {
                 await interaction.editReply({
-                    content: `💀 **RAID FAILED!** 💀\n${interaction.user} tried to raid ${target} but failed and lost ${result.riskAmount} "${word}" streaks!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s streak remains at ${result.defenderNewCount}`,
+                    content: `💀 **RAID FAILED!** 💀\n${interaction.user} tried to raid ${target} but failed and lost ${result.riskAmount} "${word}" streaks!\n${target} gained ${result.riskAmount} streaks as a defense bonus!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}`,
                     ephemeral: false
                 });
             }

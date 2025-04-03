@@ -877,8 +877,9 @@ module.exports = {
                     defenderStreak.count -= stealAmount;
                     if (defenderStreak.count < 1) defenderStreak.count = 1;
                 } else {
-                    // Failed raid
+                    // Failed raid - now give the risk amount to the defender
                     attackerStreak.count -= riskAmount;
+                    defenderStreak.count += riskAmount; // Give the risk amount to the defender
                     if (attackerStreak.count < 1) attackerStreak.count = 1;
                 }
 
