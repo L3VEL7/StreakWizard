@@ -81,12 +81,12 @@ module.exports = {
 
             if (result.success) {
                 await interaction.editReply({
-                    content: `⚔️ **RAID SUCCESSFUL!** ⚔️\n${interaction.user} raided ${target} and stole ${result.stealAmount} "${word}" streaks!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}\n\n⏳ Cooldown: ${raidConfig.successCooldownHours} hours`,
+                    content: `⚔️ **RAID SUCCESSFUL!** ⚔️\n${interaction.user} raided ${target} and stole ${result.stealAmount} "${word}" streaks!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}\n\n⏳ Cooldown: ${raidConfig.successCooldownHours || 4} hours`,
                     ephemeral: false
                 });
             } else {
                 await interaction.editReply({
-                    content: `💀 **RAID FAILED!** 💀\n${interaction.user} tried to raid ${target} but failed and lost ${result.riskAmount} "${word}" streaks!\n${target} gained ${result.riskAmount} streaks as a defense bonus!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}\n\n⏳ Cooldown: ${raidConfig.failureCooldownHours} hours`,
+                    content: `💀 **RAID FAILED!** 💀\n${interaction.user} tried to raid ${target} but failed and lost ${result.riskAmount} "${word}" streaks!\n${target} gained ${result.riskAmount} streaks as a defense bonus!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}\n\n⏳ Cooldown: ${raidConfig.failureCooldownHours || 2} hours`,
                     ephemeral: false
                 });
             }

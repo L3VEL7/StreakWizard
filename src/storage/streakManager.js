@@ -321,7 +321,7 @@ module.exports = {
             enabled: config ? config.raidEnabled : false,
             // Percentage-based settings
             maxStealPercent: config ? config.raidMaxStealPercent : 20,
-            riskPercent: config ? config.riskRiskPercent : 15,
+            riskPercent: config ? config.raidRiskPercent : 15,
             successChance: config ? config.raidSuccessChance : 50,
             // Added minimum and maximum values
             minStealAmount: config ? config.raidMinStealAmount : 5,
@@ -379,6 +379,7 @@ module.exports = {
                     const raidDate = new Date(streak.lastRaidDate);
                     if (!lastRaidDate || raidDate > lastRaidDate) {
                         lastRaidDate = raidDate;
+                        // If lastRaidSuccess is undefined, default to using failure cooldown (shorter)
                         wasSuccessful = streak.lastRaidSuccess === true;
                     }
                 }
@@ -400,8 +401,9 @@ module.exports = {
             
             return hoursSinceLastRaid >= cooldownHours;
         } catch (error) {
-            console.warn('Error checking raid cooldown, allowing raid:', error);
-            return true; // Allow raid if we can't check properly
+            console.error('Error checking raid cooldown:', error);
+            // If there was an error (like missing column), allow the raid
+            return true;
         }
     },
 
@@ -1115,7 +1117,7 @@ module.exports = {
         const raidConfig = await this.getRaidConfig(guildId);
         
         try {
-            // Find all streaks for this user
+            // Try to find any streak for this user to check raid date
             const userStreaks = await Streak.findAll({
                 where: {
                     guildId,
@@ -1127,7 +1129,12 @@ module.exports = {
             
             if (!userStreaks || userStreaks.length === 0) {
                 // No streaks found, so no cooldown applies
-                return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+                return { 
+                    canRaid: true, 
+                    remainingHours: 0, 
+                    remainingMinutes: 0,
+                    wasSuccessful: false
+                };
             }
             
             // Find the most recent raid, if any
@@ -1139,6 +1146,7 @@ module.exports = {
                     const raidDate = new Date(streak.lastRaidDate);
                     if (!lastRaidDate || raidDate > lastRaidDate) {
                         lastRaidDate = raidDate;
+                        // If lastRaidSuccess is undefined, default to using failure cooldown
                         wasSuccessful = streak.lastRaidSuccess === true;
                     }
                 }
@@ -1146,7 +1154,12 @@ module.exports = {
             
             if (!lastRaidDate) {
                 // No previous raid found
-                return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+                return { 
+                    canRaid: true, 
+                    remainingHours: 0, 
+                    remainingMinutes: 0,
+                    wasSuccessful: false
+                };
             }
             
             // Determine applicable cooldown based on success/failure
@@ -1157,25 +1170,28 @@ module.exports = {
             // Calculate time elapsed and remaining
             const now = new Date();
             const hoursSinceLastRaid = (now - lastRaidDate) / (1000 * 60 * 60);
+            const remainingHours = Math.max(0, cooldownHours - hoursSinceLastRaid);
             
-            if (hoursSinceLastRaid >= cooldownHours) {
-                return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
-            }
+            // Convert to hours and minutes
+            const wholeRemainingHours = Math.floor(remainingHours);
+            const remainingMinutes = Math.floor((remainingHours - wholeRemainingHours) * 60);
             
-            // Calculate remaining time
-            const remainingHours = cooldownHours - hoursSinceLastRaid;
-            const hours = Math.floor(remainingHours);
-            const minutes = Math.floor((remainingHours - hours) * 60);
-            
-            return { 
-                canRaid: false, 
-                remainingHours: hours, 
-                remainingMinutes: minutes,
+            return {
+                canRaid: hoursSinceLastRaid >= cooldownHours,
+                remainingHours: wholeRemainingHours,
+                remainingMinutes: remainingMinutes,
                 wasSuccessful: wasSuccessful
             };
         } catch (error) {
-            console.warn('Error checking raid cooldown time:', error);
-            return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+            console.error('Error checking raid cooldown:', error);
+            // If there was an error (like missing column), allow the raid
+            return { 
+                canRaid: true, 
+                remainingHours: 0, 
+                remainingMinutes: 0,
+                wasSuccessful: false,
+                error: error.message
+            };
         }
     }
 };

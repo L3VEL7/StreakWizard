@@ -88,12 +88,42 @@ const GuildConfig = sequelize.define('GuildConfig', {
     },
     raidRiskPercent: {
         type: DataTypes.INTEGER,
-        defaultValue: 30,
+        defaultValue: 15,
         allowNull: false
     },
     raidSuccessChance: {
         type: DataTypes.INTEGER,
-        defaultValue: 40,
+        defaultValue: 50,
+        allowNull: false
+    },
+    raidMinStealAmount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 5,
+        allowNull: false
+    },
+    raidMaxStealAmount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 30,
+        allowNull: false
+    },
+    raidMinRiskAmount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 3,
+        allowNull: false
+    },
+    raidMaxRiskAmount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 20,
+        allowNull: false
+    },
+    raidSuccessCooldownHours: {
+        type: DataTypes.INTEGER,
+        defaultValue: 4,
+        allowNull: false
+    },
+    raidFailureCooldownHours: {
+        type: DataTypes.INTEGER,
+        defaultValue: 2,
         allowNull: false
     },
     raidCooldownHours: {
@@ -154,6 +184,10 @@ const Streak = sequelize.define('Streak', {
     },
     lastRaidDate: {
         type: DataTypes.DATE,
+        allowNull: true
+    },
+    lastRaidSuccess: {
+        type: DataTypes.BOOLEAN,
         allowNull: true
     }
 });
@@ -265,7 +299,7 @@ async function migrateDatabase() {
             const hasRaidRiskPercent = await checkColumnExists('GuildConfigs', 'raidRiskPercent');
             if (!hasRaidRiskPercent) {
                 await sequelize.query(
-                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidRiskPercent\" INTEGER NOT NULL DEFAULT 30",
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidRiskPercent\" INTEGER NOT NULL DEFAULT 15",
                     { transaction }
                 );
                 console.log('Added raidRiskPercent column to GuildConfigs');
@@ -274,7 +308,7 @@ async function migrateDatabase() {
             const hasRaidSuccessChance = await checkColumnExists('GuildConfigs', 'raidSuccessChance');
             if (!hasRaidSuccessChance) {
                 await sequelize.query(
-                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidSuccessChance\" INTEGER NOT NULL DEFAULT 40",
+                    "ALTER TABLE \"GuildConfigs\" ADD COLUMN \"raidSuccessChance\" INTEGER NOT NULL DEFAULT 50",
                     { transaction }
                 );
                 console.log('Added raidSuccessChance column to GuildConfigs');
@@ -290,6 +324,31 @@ async function migrateDatabase() {
                 console.log('Added raidCooldownHours column to GuildConfigs');
             }
 
+            // Add new raid configuration columns
+            const newRaidColumns = [
+                { name: 'raidMinStealAmount', type: 'INTEGER NOT NULL DEFAULT 5' },
+                { name: 'raidMaxStealAmount', type: 'INTEGER NOT NULL DEFAULT 30' },
+                { name: 'raidMinRiskAmount', type: 'INTEGER NOT NULL DEFAULT 3' },
+                { name: 'raidMaxRiskAmount', type: 'INTEGER NOT NULL DEFAULT 20' },
+                { name: 'raidSuccessCooldownHours', type: 'INTEGER NOT NULL DEFAULT 4' },
+                { name: 'raidFailureCooldownHours', type: 'INTEGER NOT NULL DEFAULT 2' }
+            ];
+            
+            for (const column of newRaidColumns) {
+                const hasColumn = await checkColumnExists('GuildConfigs', column.name);
+                if (!hasColumn) {
+                    try {
+                        await sequelize.query(
+                            `ALTER TABLE "GuildConfigs" ADD COLUMN "${column.name}" ${column.type}`,
+                            { transaction }
+                        );
+                        console.log(`Added ${column.name} column to GuildConfigs`);
+                    } catch (err) {
+                        console.error(`Error adding ${column.name} column:`, err.message);
+                    }
+                }
+            }
+
             // Migrate Streaks
             console.log('Migrating Streaks table...');
             
@@ -298,7 +357,8 @@ async function migrateDatabase() {
                 { name: 'streakStreak', type: 'INTEGER NOT NULL DEFAULT 0' },
                 { name: 'lastStreakDate', type: 'DATE' },
                 { name: 'bestStreak', type: 'INTEGER NOT NULL DEFAULT 1' },
-                { name: 'lastRaidDate', type: 'DATE' }
+                { name: 'lastRaidDate', type: 'DATE' },
+                { name: 'lastRaidSuccess', type: 'BOOLEAN' }
             ];
 
             for (const column of columnsToAdd) {
@@ -344,7 +404,8 @@ async function migrateDatabase() {
                 'streakStreak': 'INTEGER NOT NULL DEFAULT 0',
                 'lastStreakDate': 'DATE',
                 'lastUpdated': 'DATE NOT NULL DEFAULT CURRENT_TIMESTAMP',
-                'lastRaidDate': 'DATE'
+                'lastRaidDate': 'DATE',
+                'lastRaidSuccess': 'BOOLEAN'
             };
 
             for (const [columnName, columnType] of Object.entries(requiredColumns)) {
@@ -560,12 +621,45 @@ async function ensureLastRaidDateColumn() {
     }
 }
 
+// Helper function to ensure lastRaidSuccess column exists
+async function ensureLastRaidSuccessColumn() {
+    try {
+        // Check if column exists
+        const exists = await checkColumnExists('Streaks', 'lastRaidSuccess');
+        if (!exists) {
+            console.log('lastRaidSuccess column missing, attempting to add it directly...');
+            // Add the column without using a transaction
+            try {
+                await sequelize.query(
+                    `ALTER TABLE "Streaks" ADD COLUMN "lastRaidSuccess" BOOLEAN`
+                );
+                console.log('Successfully added lastRaidSuccess column');
+                return true;
+            } catch (columnError) {
+                // If error is "column already exists", that's fine
+                if (columnError.parent && columnError.parent.code === '42701') {
+                    console.log('Column lastRaidSuccess already exists, continuing...');
+                    return true;
+                }
+                // For other errors, log but don't fail
+                console.error('Error adding lastRaidSuccess column:', columnError.message);
+                return false;
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error('Error checking/adding lastRaidSuccess column:', error.message);
+        return false;
+    }
+}
+
 async function initializeDatabase() {
     try {
         console.log('Starting database initialization...');
         
         // Ensure critical columns exist
         await ensureLastRaidDateColumn();
+        await ensureLastRaidSuccessColumn();
         
         // Run migration first - even if it fails, try to continue
         try {
