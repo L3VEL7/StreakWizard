@@ -43,8 +43,8 @@ module.exports = {
                 .setDescription('Select a feature to configure from the dropdown menu below.')
                 .addFields(
                     { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
-                    { name: '⚔️ Raid System', value: `Status: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidConfig.maxStealPercent}%\nRisk: ${raidConfig.riskPercent}%\nSuccess Chance: ${raidConfig.successChance}%\nCooldown: ${raidConfig.cooldownHours}h` },
-                    { name: '🎲 Gambling System', value: `Status: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingConfig.successChance}%\nMax Gamble: ${gamblingConfig.maxGamblePercent}%\nMin Streaks: ${gamblingConfig.minStreaks}` }
+                    { name: '⚔️ Raid System', value: `Status: ${raidConfig.enabled ? '✅ Enabled' : '❌ Disabled'}` },
+                    { name: '🎲 Gambling System', value: `Status: ${gamblingConfig.enabled ? '✅ Enabled' : '❌ Disabled'}` }
                 );
 
             // Create the main feature selection dropdown menu
@@ -139,17 +139,17 @@ module.exports = {
                             case 'toggle_raid':
                                 await handleToggleRaid(i, interaction);
                                 break;
-                            case 'max_steal':
-                                await handleRaidMaxSteal(i, interaction);
-                                break;
-                            case 'risk':
-                                await handleRaidRisk(i, interaction);
-                                break;
                             case 'success_chance':
                                 await handleRaidSuccessChance(i, interaction);
                                 break;
-                            case 'cooldown':
-                                await handleRaidCooldown(i, interaction);
+                            case 'steal_settings':
+                                await handleRaidStealSettings(i, interaction);
+                                break;
+                            case 'risk_settings':
+                                await handleRaidRiskSettings(i, interaction);
+                                break;
+                            case 'cooldown_settings':
+                                await handleRaidCooldownSettings(i, interaction);
                                 break;
                         }
                     }
@@ -378,6 +378,173 @@ module.exports = {
                         await handleCoreConfig(i, interaction);
                         return;
                     }
+
+                    // Add these button handlers for the raid settings
+
+                    // Steal percentage adjustment
+                    if (i.customId.startsWith('raid_steal_percent_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let value = raidConfig.maxStealPercent || 20;
+                        
+                        if (i.customId === 'raid_steal_percent_minus10') value = Math.max(1, value - 10);
+                        if (i.customId === 'raid_steal_percent_minus5') value = Math.max(1, value - 5);
+                        if (i.customId === 'raid_steal_percent_plus5') value = Math.min(100, value + 5);
+                        if (i.customId === 'raid_steal_percent_plus10') value = Math.min(100, value + 10);
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            maxStealPercent: value
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidStealSettings(i, interaction);
+                        return;
+                    }
+
+                    // Steal min amount adjustment
+                    if (i.customId.startsWith('raid_steal_min_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let value = raidConfig.minStealAmount || 5;
+                        
+                        if (i.customId === 'raid_steal_min_minus5') value = Math.max(1, value - 5);
+                        if (i.customId === 'raid_steal_min_minus1') value = Math.max(1, value - 1);
+                        if (i.customId === 'raid_steal_min_plus1') value = value + 1;
+                        if (i.customId === 'raid_steal_min_plus5') value = value + 5;
+                        
+                        // Ensure min <= max
+                        const maxValue = raidConfig.maxStealAmount || 30;
+                        if (value > maxValue) value = maxValue;
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            minStealAmount: value
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidStealSettings(i, interaction);
+                        return;
+                    }
+
+                    // Steal max amount adjustment
+                    if (i.customId.startsWith('raid_steal_max_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let value = raidConfig.maxStealAmount || 30;
+                        
+                        if (i.customId === 'raid_steal_max_minus5') value = Math.max(1, value - 5);
+                        if (i.customId === 'raid_steal_max_minus1') value = Math.max(1, value - 1);
+                        if (i.customId === 'raid_steal_max_plus1') value = value + 1;
+                        if (i.customId === 'raid_steal_max_plus5') value = value + 5;
+                        
+                        // Ensure min <= max
+                        const minValue = raidConfig.minStealAmount || 5;
+                        if (value < minValue) value = minValue;
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            maxStealAmount: value
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidStealSettings(i, interaction);
+                        return;
+                    }
+
+                    // Risk percentage adjustment
+                    if (i.customId.startsWith('raid_risk_percent_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let value = raidConfig.riskPercent || 15;
+                        
+                        if (i.customId === 'raid_risk_percent_minus10') value = Math.max(1, value - 10);
+                        if (i.customId === 'raid_risk_percent_minus5') value = Math.max(1, value - 5);
+                        if (i.customId === 'raid_risk_percent_plus5') value = Math.min(100, value + 5);
+                        if (i.customId === 'raid_risk_percent_plus10') value = Math.min(100, value + 10);
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            riskPercent: value
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidRiskSettings(i, interaction);
+                        return;
+                    }
+
+                    // Risk min amount adjustment
+                    if (i.customId.startsWith('raid_risk_min_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let value = raidConfig.minRiskAmount || 3;
+                        
+                        if (i.customId === 'raid_risk_min_minus5') value = Math.max(1, value - 5);
+                        if (i.customId === 'raid_risk_min_minus1') value = Math.max(1, value - 1);
+                        if (i.customId === 'raid_risk_min_plus1') value = value + 1;
+                        if (i.customId === 'raid_risk_min_plus5') value = value + 5;
+                        
+                        // Ensure min <= max
+                        const maxValue = raidConfig.maxRiskAmount || 20;
+                        if (value > maxValue) value = maxValue;
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            minRiskAmount: value
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidRiskSettings(i, interaction);
+                        return;
+                    }
+
+                    // Risk max amount adjustment
+                    if (i.customId.startsWith('raid_risk_max_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let value = raidConfig.maxRiskAmount || 20;
+                        
+                        if (i.customId === 'raid_risk_max_minus5') value = Math.max(1, value - 5);
+                        if (i.customId === 'raid_risk_max_minus1') value = Math.max(1, value - 1);
+                        if (i.customId === 'raid_risk_max_plus1') value = value + 1;
+                        if (i.customId === 'raid_risk_max_plus5') value = value + 5;
+                        
+                        // Ensure min <= max
+                        const minValue = raidConfig.minRiskAmount || 3;
+                        if (value < minValue) value = minValue;
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            maxRiskAmount: value
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidRiskSettings(i, interaction);
+                        return;
+                    }
+
+                    // Cooldown adjustments
+                    if (i.customId.startsWith('raid_success_cooldown_') || i.customId.startsWith('raid_failure_cooldown_')) {
+                        const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                        let successValue = raidConfig.successCooldownHours || 4;
+                        let failureValue = raidConfig.failureCooldownHours || 2;
+                        
+                        if (i.customId === 'raid_success_cooldown_minus1') successValue = Math.max(1, successValue - 1);
+                        if (i.customId === 'raid_success_cooldown_plus1') successValue = Math.min(24, successValue + 1);
+                        if (i.customId === 'raid_failure_cooldown_minus1') failureValue = Math.max(0, failureValue - 1);
+                        if (i.customId === 'raid_failure_cooldown_plus1') failureValue = Math.min(24, failureValue + 1);
+                        
+                        // Update config
+                        await streakManager.updateRaidConfig(interaction.guildId, {
+                            ...raidConfig,
+                            successCooldownHours: successValue,
+                            failureCooldownHours: failureValue
+                        });
+                        
+                        // Show updated settings
+                        await handleRaidCooldownSettings(i, interaction);
+                        return;
+                    }
                 } catch (error) {
                     console.error('Error handling configuration:', error);
                     await i.update({
@@ -474,13 +641,18 @@ async function handleCoreConfig(interaction, originalInteraction) {
 async function handleRaidConfig(interaction, originalInteraction) {
     const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
     
-    // Ensure default values
+    // Ensure defaults for all values
     const config = {
         enabled: raidConfig.enabled || false,
         maxStealPercent: raidConfig.maxStealPercent || 20,
-        riskPercent: raidConfig.riskPercent || 30,
-        successChance: raidConfig.successChance || 40,
-        cooldownHours: raidConfig.cooldownHours || 24
+        riskPercent: raidConfig.riskPercent || 15,
+        successChance: raidConfig.successChance || 50,
+        minStealAmount: raidConfig.minStealAmount || 5,
+        maxStealAmount: raidConfig.maxStealAmount || 30,
+        minRiskAmount: raidConfig.minRiskAmount || 3,
+        maxRiskAmount: raidConfig.maxRiskAmount || 20,
+        successCooldownHours: raidConfig.successCooldownHours || 4,
+        failureCooldownHours: raidConfig.failureCooldownHours || 2
     };
     
     const embed = new EmbedBuilder()
@@ -489,10 +661,10 @@ async function handleRaidConfig(interaction, originalInteraction) {
         .setDescription('Select a setting to configure:')
         .addFields(
             { name: 'Enable/Disable', value: `Current: ${config.enabled ? '✅ Enabled' : '❌ Disabled'}` },
-            { name: 'Max Steal', value: `Current: ${config.maxStealPercent}%` },
-            { name: 'Risk', value: `Current: ${config.riskPercent}%` },
             { name: 'Success Chance', value: `Current: ${config.successChance}%` },
-            { name: 'Cooldown', value: `Current: ${config.cooldownHours}h` }
+            { name: 'Max Steal', value: `Current: ${config.maxStealPercent}% (Min: ${config.minStealAmount}, Max: ${config.maxStealAmount})` },
+            { name: 'Risk', value: `Current: ${config.riskPercent}% (Min: ${config.minRiskAmount}, Max: ${config.maxRiskAmount})` },
+            { name: 'Cooldown', value: `Success: ${config.successCooldownHours}h | Failure: ${config.failureCooldownHours}h` }
         );
 
     const selectRow = new ActionRowBuilder()
@@ -508,27 +680,27 @@ async function handleRaidConfig(interaction, originalInteraction) {
                         emoji: '🔒'
                     },
                     {
-                        label: 'Max Steal',
-                        description: 'Set maximum steal percentage',
-                        value: 'max_steal',
-                        emoji: '💰'
-                    },
-                    {
-                        label: 'Risk',
-                        description: 'Set risk percentage',
-                        value: 'risk',
-                        emoji: '⚠️'
-                    },
-                    {
                         label: 'Success Chance',
                         description: 'Set success chance',
                         value: 'success_chance',
                         emoji: '🎯'
                     },
                     {
-                        label: 'Cooldown',
-                        description: 'Set cooldown period',
-                        value: 'cooldown',
+                        label: 'Steal Settings',
+                        description: 'Configure max steal % and min/max values',
+                        value: 'steal_settings',
+                        emoji: '💰'
+                    },
+                    {
+                        label: 'Risk Settings',
+                        description: 'Configure risk % and min/max values',
+                        value: 'risk_settings',
+                        emoji: '⚠️'
+                    },
+                    {
+                        label: 'Cooldown Times',
+                        description: 'Set cooldown for success/failure',
+                        value: 'cooldown_settings',
                         emoji: '⏰'
                     }
                 ])
@@ -1325,4 +1497,256 @@ async function showMainMenu(interaction, guildId) {
             ephemeral: true
         });
     }
+}
+
+// Add these new handler functions for raid configuration
+
+/**
+ * Configure raid steal settings (percentage and min/max values)
+ */
+async function handleRaidStealSettings(interaction, originalInteraction) {
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('💰 Raid Steal Settings')
+        .setDescription('Configure how much can be stolen in a successful raid')
+        .addFields(
+            { name: 'Max Steal Percentage', value: `${raidConfig.maxStealPercent || 20}%` },
+            { name: 'Minimum Steal Amount', value: `${raidConfig.minStealAmount || 5} streaks` },
+            { name: 'Maximum Steal Amount', value: `${raidConfig.maxStealAmount || 30} streaks` },
+            { name: 'How it works', value: 'The system calculates a percentage (up to Max %) of the target\'s streaks, then ensures it\'s between the min and max values.' }
+        );
+    
+    // Create percentage adjustment row
+    const percentRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_steal_percent_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_percent_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_percent_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_percent_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Create min value adjustment row
+    const minRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_steal_min_minus5')
+                .setLabel('Min -5')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_min_minus1')
+                .setLabel('Min -1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_min_plus1')
+                .setLabel('Min +1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_min_plus5')
+                .setLabel('Min +5')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Create max value adjustment row
+    const maxRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_steal_max_minus5')
+                .setLabel('Max -5')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_max_minus1')
+                .setLabel('Max -1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_max_plus1')
+                .setLabel('Max +1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_steal_max_plus5')
+                .setLabel('Max +5')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Back button row
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
+    await interaction.update({
+        embeds: [embed],
+        components: [percentRow, minRow, maxRow, backRow],
+        ephemeral: true
+    });
+}
+
+/**
+ * Configure raid risk settings (percentage and min/max values)
+ */
+async function handleRaidRiskSettings(interaction, originalInteraction) {
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('⚠️ Raid Risk Settings')
+        .setDescription('Configure how much is lost (and given to defender) in a failed raid')
+        .addFields(
+            { name: 'Risk Percentage', value: `${raidConfig.riskPercent || 15}%` },
+            { name: 'Minimum Risk Amount', value: `${raidConfig.minRiskAmount || 3} streaks` },
+            { name: 'Maximum Risk Amount', value: `${raidConfig.maxRiskAmount || 20} streaks` },
+            { name: 'How it works', value: 'The system calculates a percentage of the attacker\'s streaks, then ensures it\'s between the min and max values.' }
+        );
+    
+    // Create percentage adjustment row
+    const percentRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_risk_percent_minus10')
+                .setLabel('-10%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_percent_minus5')
+                .setLabel('-5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_percent_plus5')
+                .setLabel('+5%')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_percent_plus10')
+                .setLabel('+10%')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Create min value adjustment row
+    const minRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_risk_min_minus5')
+                .setLabel('Min -5')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_min_minus1')
+                .setLabel('Min -1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_min_plus1')
+                .setLabel('Min +1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_min_plus5')
+                .setLabel('Min +5')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Create max value adjustment row
+    const maxRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_risk_max_minus5')
+                .setLabel('Max -5')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_max_minus1')
+                .setLabel('Max -1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_max_plus1')
+                .setLabel('Max +1')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_risk_max_plus5')
+                .setLabel('Max +5')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Back button row
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
+    await interaction.update({
+        embeds: [embed],
+        components: [percentRow, minRow, maxRow, backRow],
+        ephemeral: true
+    });
+}
+
+/**
+ * Configure raid cooldown settings (success/failure)
+ */
+async function handleRaidCooldownSettings(interaction, originalInteraction) {
+    const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('⏰ Raid Cooldown Settings')
+        .setDescription('Configure how long users must wait between raids')
+        .addFields(
+            { name: 'Success Cooldown', value: `${raidConfig.successCooldownHours || 4} hours` },
+            { name: 'Failure Cooldown', value: `${raidConfig.failureCooldownHours || 2} hours` },
+            { name: 'How it works', value: 'Success cooldown applies after winning a raid. Failure cooldown (shorter) applies after losing a raid.' }
+        );
+    
+    // Create success cooldown adjustment row
+    const successRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_success_cooldown_minus1')
+                .setLabel('Success -1h')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_success_cooldown_plus1')
+                .setLabel('Success +1h')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Create failure cooldown adjustment row
+    const failureRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('raid_failure_cooldown_minus1')
+                .setLabel('Failure -1h')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('raid_failure_cooldown_plus1')
+                .setLabel('Failure +1h')
+                .setStyle(ButtonStyle.Secondary)
+        );
+    
+    // Back button row
+    const backRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('back_to_raid_config')
+                .setLabel('Back to Raid Config')
+                .setStyle(ButtonStyle.Primary)
+        );
+    
+    await interaction.update({
+        embeds: [embed],
+        components: [successRow, failureRow, backRow],
+        ephemeral: true
+    });
 }

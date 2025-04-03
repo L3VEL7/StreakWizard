@@ -319,10 +319,18 @@ module.exports = {
         const config = await GuildConfig.findByPk(guildId);
         return {
             enabled: config ? config.raidEnabled : false,
+            // Percentage-based settings
             maxStealPercent: config ? config.raidMaxStealPercent : 20,
-            riskPercent: config ? config.raidRiskPercent : 30,
-            successChance: config ? config.raidSuccessChance : 40,
-            cooldownHours: config ? config.raidCooldownHours : 24 // Default 24 hour cooldown
+            riskPercent: config ? config.riskRiskPercent : 15,
+            successChance: config ? config.raidSuccessChance : 50,
+            // Added minimum and maximum values
+            minStealAmount: config ? config.raidMinStealAmount : 5,
+            maxStealAmount: config ? config.raidMaxStealAmount : 30,
+            minRiskAmount: config ? config.raidMinRiskAmount : 3,
+            maxRiskAmount: config ? config.raidMaxRiskAmount : 20,
+            // Different cooldowns based on outcome
+            successCooldownHours: config ? config.raidSuccessCooldownHours : 4,
+            failureCooldownHours: config ? config.raidFailureCooldownHours : 2
         };
     },
 
@@ -333,41 +341,67 @@ module.exports = {
             raidMaxStealPercent: config.maxStealPercent,
             raidRiskPercent: config.riskPercent,
             raidSuccessChance: config.successChance,
-            raidCooldownHours: config.cooldownHours
+            raidMinStealAmount: config.minStealAmount,
+            raidMaxStealAmount: config.maxStealAmount,
+            raidMinRiskAmount: config.minRiskAmount,
+            raidMaxRiskAmount: config.maxRiskAmount,
+            raidSuccessCooldownHours: config.successCooldownHours,
+            raidFailureCooldownHours: config.failureCooldownHours
         });
     },
 
     async canRaid(guildId, userId) {
+        const raidConfig = await this.getRaidConfig(guildId);
+        
         try {
-            const config = await this.getRaidConfig(guildId);
-            if (!config.enabled) return false;
-
-            // Try to find the column using specific attributes to avoid issues with missing columns
-            try {
-                const lastRaid = await Streak.findOne({
-                    where: {
-                        guildId,
-                        userId
-                    },
-                    attributes: ['id', 'lastUpdated'], // Only select columns we know exist
-                    raw: true
-                });
-
-                // If no record or no lastRaidDate, assume user can raid
-                if (!lastRaid) return true;
-                
-                // If lastRaidDate doesn't exist in the schema yet, allow raiding
-                // The transaction will add it when user actually raids
-                return true;
-            } catch (findError) {
-                console.error('Error checking raid cooldown:', findError);
-                // In case of error, allow raiding
+            // Try to find any streak for this user to check raid date
+            // Since lastRaidDate might not exist in older database versions, we use a try-catch
+            const userStreaks = await Streak.findAll({
+                where: {
+                    guildId,
+                    userId
+                },
+                attributes: ['id', 'lastRaidDate', 'lastRaidSuccess'],
+                raw: true
+            });
+            
+            if (!userStreaks || userStreaks.length === 0) {
+                // No streaks found, so no cooldown applies
                 return true;
             }
+            
+            // Find the most recent raid, if any
+            let lastRaidDate = null;
+            let wasSuccessful = false;
+            
+            for (const streak of userStreaks) {
+                if (streak.lastRaidDate) {
+                    const raidDate = new Date(streak.lastRaidDate);
+                    if (!lastRaidDate || raidDate > lastRaidDate) {
+                        lastRaidDate = raidDate;
+                        wasSuccessful = streak.lastRaidSuccess === true;
+                    }
+                }
+            }
+            
+            if (!lastRaidDate) {
+                // No previous raid found
+                return true;
+            }
+            
+            // Determine applicable cooldown based on success/failure
+            const cooldownHours = wasSuccessful ? 
+                (raidConfig.successCooldownHours || 4) : 
+                (raidConfig.failureCooldownHours || 2);
+            
+            // Calculate time elapsed
+            const now = new Date();
+            const hoursSinceLastRaid = (now - lastRaidDate) / (1000 * 60 * 60);
+            
+            return hoursSinceLastRaid >= cooldownHours;
         } catch (error) {
-            console.error('Error in canRaid:', error);
-            // In case of any error, default to false (safer option)
-            return false;
+            console.warn('Error checking raid cooldown, allowing raid:', error);
+            return true; // Allow raid if we can't check properly
         }
     },
 
@@ -835,9 +869,9 @@ module.exports = {
                     throw new Error('Target streak is being rapidly updated. Please try again later.');
                 }
 
-                // Prevent raiding if attacker has fewer streaks than defender
-                if (attackerStreak.count < defenderStreak.count * 0.5) {
-                    throw new Error('You need at least 50% of the target\'s streak count to raid');
+                // Prevent raiding if attacker has insufficient streaks (25% or at least 10)
+                if (attackerStreak.count < Math.max(10, defenderStreak.count * 0.25)) {
+                    throw new Error('You need at least 25% of the target\'s streak count (or at least 10 streaks) to raid');
                 }
 
                 // Anti-exploit: Maximum streak cap for raids
@@ -846,27 +880,24 @@ module.exports = {
                     throw new Error('Target streak is too high to raid');
                 }
 
-                // Calculate risk amount
-                const riskAmount = Math.floor(attackerStreak.count * (raidConfig.riskPercent / 100));
-                if (riskAmount < 1) {
-                    throw new Error('Risk amount must be at least 1 streak');
-                }
+                // Update the risk amount calculation with min/max limits
+                const calculatedRiskPercent = raidConfig.riskPercent || 15;
+                let riskAmount = Math.floor(attackerStreak.count * (calculatedRiskPercent / 100));
+                // Apply minimum and maximum limits
+                riskAmount = Math.max(raidConfig.minRiskAmount || 3, riskAmount);
+                riskAmount = Math.min(raidConfig.maxRiskAmount || 20, riskAmount);
 
-                // Calculate potential steal amount (weighted towards lower percentages)
+                // Update the steal amount calculation with min/max limits
+                const maxStealPercent = raidConfig.maxStealPercent || 20;
+                // Calculate a random percentage between 30-100% of the maxStealPercent
                 const stealPercent = Math.min(
-                    raidConfig.maxStealPercent,
-                    Math.floor(Math.random() * raidConfig.maxStealPercent * 0.7) + 1 // 70% chance of being below 70% of max
+                    maxStealPercent,
+                    Math.floor(Math.random() * maxStealPercent * 0.9) + Math.floor(maxStealPercent * 0.3)
                 );
-                const stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
-                if (stealAmount < 1) {
-                    throw new Error('Target streak is too low to raid');
-                }
-
-                // Anti-exploit: Maximum steal amount cap
-                const MAX_STEAL_AMOUNT = 1000;
-                if (stealAmount > MAX_STEAL_AMOUNT) {
-                    throw new Error('Maximum steal amount exceeded');
-                }
+                let stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
+                // Apply minimum and maximum limits
+                stealAmount = Math.max(raidConfig.minStealAmount || 5, stealAmount);
+                stealAmount = Math.min(raidConfig.maxStealAmount || 30, stealAmount);
 
                 // Determine raid success
                 const success = Math.random() * 100 < raidConfig.successChance;
@@ -883,12 +914,18 @@ module.exports = {
                     if (attackerStreak.count < 1) attackerStreak.count = 1;
                 }
 
-                // Update last raid date
+                // After determining raid success or failure, set the appropriate cooldown
+                const cooldownHours = success ? 
+                    (raidConfig.successCooldownHours || 4) : 
+                    (raidConfig.failureCooldownHours || 2);
+
+                // Store cooldown information in a way that can be retrieved later
                 try {
-                    // Try to update the lastRaidDate - it might not exist in database yet
+                    // Store the raid time and outcome for cooldown calculation
                     attackerStreak.lastRaidDate = new Date();
+                    attackerStreak.lastRaidSuccess = success;
                 } catch (dateError) {
-                    console.warn('Could not set lastRaidDate, column might not exist yet:', dateError.message);
+                    console.warn('Could not update raid information, columns might not exist:', dateError.message);
                     // Continue even if this fails - it's not critical
                 }
 
@@ -1070,6 +1107,75 @@ module.exports = {
 
     // New function to update raid configuration (alias for setRaidConfig)
     async updateRaidConfig(guildId, config) {
-        return this.setRaidConfig(guildId, config);
+        await this.setRaidConfig(guildId, config);
+    },
+
+    // Add a new function to get the remaining raid cooldown time
+    async getRemainingRaidTime(guildId, userId) {
+        const raidConfig = await this.getRaidConfig(guildId);
+        
+        try {
+            // Find all streaks for this user
+            const userStreaks = await Streak.findAll({
+                where: {
+                    guildId,
+                    userId
+                },
+                attributes: ['id', 'lastRaidDate', 'lastRaidSuccess'],
+                raw: true
+            });
+            
+            if (!userStreaks || userStreaks.length === 0) {
+                // No streaks found, so no cooldown applies
+                return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+            }
+            
+            // Find the most recent raid, if any
+            let lastRaidDate = null;
+            let wasSuccessful = false;
+            
+            for (const streak of userStreaks) {
+                if (streak.lastRaidDate) {
+                    const raidDate = new Date(streak.lastRaidDate);
+                    if (!lastRaidDate || raidDate > lastRaidDate) {
+                        lastRaidDate = raidDate;
+                        wasSuccessful = streak.lastRaidSuccess === true;
+                    }
+                }
+            }
+            
+            if (!lastRaidDate) {
+                // No previous raid found
+                return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+            }
+            
+            // Determine applicable cooldown based on success/failure
+            const cooldownHours = wasSuccessful ? 
+                (raidConfig.successCooldownHours || 4) : 
+                (raidConfig.failureCooldownHours || 2);
+            
+            // Calculate time elapsed and remaining
+            const now = new Date();
+            const hoursSinceLastRaid = (now - lastRaidDate) / (1000 * 60 * 60);
+            
+            if (hoursSinceLastRaid >= cooldownHours) {
+                return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+            }
+            
+            // Calculate remaining time
+            const remainingHours = cooldownHours - hoursSinceLastRaid;
+            const hours = Math.floor(remainingHours);
+            const minutes = Math.floor((remainingHours - hours) * 60);
+            
+            return { 
+                canRaid: false, 
+                remainingHours: hours, 
+                remainingMinutes: minutes,
+                wasSuccessful: wasSuccessful
+            };
+        } catch (error) {
+            console.warn('Error checking raid cooldown time:', error);
+            return { canRaid: true, remainingHours: 0, remainingMinutes: 0 };
+        }
     }
 };
