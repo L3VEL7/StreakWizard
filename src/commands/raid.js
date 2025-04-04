@@ -71,6 +71,12 @@ module.exports = {
                 return;
             }
 
+            // Inform about the bonus chance for initiating the raid
+            await interaction.editReply({
+                content: `⚔️ **INITIATING RAID!** ⚔️\n${interaction.user} is raiding ${target}'s "${word}" streaks!\n\n💫 **Raid initiator bonus:** +5% success chance\n\nCalculating result...`,
+                ephemeral: false
+            });
+
             // Perform the raid
             const result = await streakManager.raidStreak(
                 interaction.guildId,

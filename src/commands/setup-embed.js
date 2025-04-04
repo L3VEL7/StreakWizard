@@ -661,7 +661,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
         .setDescription('Select a setting to configure:')
         .addFields(
             { name: 'Enable/Disable', value: `Current: ${config.enabled ? '✅ Enabled' : '❌ Disabled'}` },
-            { name: 'Success Chance', value: `Current: ${config.successChance}%` },
+            { name: 'Success Chance', value: `Base: ${config.successChance}% (+5% initiator bonus)` },
             { name: 'Max Steal', value: `Current: ${config.maxStealPercent}% (Min: ${config.minStealAmount}, Max: ${config.maxStealAmount})` },
             { name: 'Risk', value: `Current: ${config.riskPercent}% (Min: ${config.minRiskAmount}, Max: ${config.maxRiskAmount})` },
             { name: 'Cooldown', value: `Success: ${config.successCooldownHours}h | Failure: ${config.failureCooldownHours}h` }
@@ -1123,8 +1123,8 @@ async function handleRaidMaxSteal(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
-                .setStyle(ButtonStyle.Primary)
+                .setLabel('Back to Raid Settings')
+                .setStyle(ButtonStyle.Secondary)
         );
     
     await interaction.update({
@@ -1179,8 +1179,8 @@ async function handleRaidRisk(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
-                .setStyle(ButtonStyle.Primary)
+                .setLabel('Back to Raid Settings')
+                .setStyle(ButtonStyle.Secondary)
         );
     
     await interaction.update({
@@ -1197,20 +1197,17 @@ async function handleRaidRisk(interaction, originalInteraction) {
  * @param {Interaction} originalInteraction - The original command interaction
  */
 async function handleRaidSuccessChance(interaction, originalInteraction) {
-    // Get current configuration
     const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+    const currentChance = raidConfig.successChance || 50;
     
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
-        .setTitle('🎯 Raid Success Chance Configuration')
-        .setDescription('Set the percentage chance of a raid being successful.')
+        .setTitle('⚔️ Raid Success Chance')
+        .setDescription(`Configure the base chance of success for raids.\n**Note:** Raiders automatically get +5% bonus chance when initiating a raid.`)
         .addFields(
-            { name: 'Current Setting', value: `${raidConfig.successChance || 40}%` },
-            { name: 'Recommended', value: 'Between 30% and 60%' },
-            { name: 'Instructions', value: 'Use the buttons below to adjust the value' }
+            { name: 'Current Setting', value: `${currentChance}% base chance + 5% initiator bonus = ${currentChance + 5}% total chance` }
         );
     
-    // Create buttons for adjusting the value
     const row = new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
@@ -1228,21 +1225,20 @@ async function handleRaidSuccessChance(interaction, originalInteraction) {
             new ButtonBuilder()
                 .setCustomId('raid_success_plus10')
                 .setLabel('+10%')
-                .setStyle(ButtonStyle.Success)
+                .setStyle(ButtonStyle.Primary)
         );
-        
+    
     const backRow = new ActionRowBuilder()
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
-                .setStyle(ButtonStyle.Primary)
+                .setLabel('Back to Raid Settings')
+                .setStyle(ButtonStyle.Secondary)
         );
     
     await interaction.update({
         embeds: [embed],
-        components: [row, backRow],
-        ephemeral: true
+        components: [row, backRow]
     });
 }
 
@@ -1291,7 +1287,7 @@ async function handleRaidCooldown(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
+                .setLabel('Back to Raid Settings')
                 .setStyle(ButtonStyle.Primary)
         );
     
@@ -1586,7 +1582,7 @@ async function handleRaidStealSettings(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
+                .setLabel('Back to Raid Settings')
                 .setStyle(ButtonStyle.Primary)
         );
     
@@ -1682,7 +1678,7 @@ async function handleRaidRiskSettings(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
+                .setLabel('Back to Raid Settings')
                 .setStyle(ButtonStyle.Primary)
         );
     
@@ -1740,7 +1736,7 @@ async function handleRaidCooldownSettings(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('back_to_raid_config')
-                .setLabel('Back to Raid Config')
+                .setLabel('Back to Raid Settings')
                 .setStyle(ButtonStyle.Primary)
         );
     

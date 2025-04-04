@@ -901,8 +901,21 @@ module.exports = {
                 stealAmount = Math.max(raidConfig.minStealAmount || 5, stealAmount);
                 stealAmount = Math.min(raidConfig.maxStealAmount || 30, stealAmount);
 
-                // Determine raid success
-                const success = Math.random() * 100 < raidConfig.successChance;
+                // Determine raid success with 5% bonus for initiating the raid
+                const baseSuccessChance = raidConfig.successChance || 50;
+                const initiatorBonus = 5; // Additional 5% chance for the raid initiator
+                const adjustedSuccessChance = baseSuccessChance + initiatorBonus;
+                
+                // Log the chance calculation
+                console.log('Raid success chance calculation:', {
+                    baseSuccessChance,
+                    initiatorBonus,
+                    adjustedSuccessChance,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Determine if raid succeeds
+                const success = Math.random() * 100 < adjustedSuccessChance;
 
                 if (success) {
                     // Successful raid
