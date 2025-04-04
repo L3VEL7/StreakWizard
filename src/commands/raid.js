@@ -92,8 +92,31 @@ module.exports = {
             }
         } catch (error) {
             console.error('Error in raid command:', error);
+            
+            // Extract specific error messages to show the user
+            let errorMessage = '❌ An error occurred while processing your raid.';
+            
+            // Common raid errors with more user-friendly messages
+            if (error.message.includes("25% of the target's streak count")) {
+                errorMessage = `❌ You need at least 25% of ${target}'s streak count (or at least 10 streaks) to raid them.`;
+            } else if (error.message.includes("Target has no streak to raid")) {
+                errorMessage = `❌ ${target} doesn't have any "${word}" streaks to raid.`;
+            } else if (error.message.includes("You need a streak to raid")) {
+                errorMessage = `❌ You need "${word}" streaks to raid someone.`;
+            } else if (error.message.includes("must wait")) {
+                errorMessage = `⏳ ${error.message}`;
+            } else if (error.message.includes("Raid feature is not enabled")) {
+                errorMessage = `❌ The raid system is currently disabled in this server.`;
+            } else if (error.message.includes("Cannot raid yourself")) {
+                errorMessage = `❌ You cannot raid yourself!`;
+            } else if (error.message.includes("Target streak is too high")) {
+                errorMessage = `❌ ${target}'s streak is too high to raid (maximum 10,000).`;
+            } else if (error.message.includes("rapidly updated")) {
+                errorMessage = `⚠️ ${target} is updating their streaks too quickly. Please try again later.`;
+            }
+            
             await interaction.editReply({
-                content: '❌ An error occurred while processing your raid.',
+                content: errorMessage,
                 ephemeral: false
             });
         }
