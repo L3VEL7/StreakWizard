@@ -24,6 +24,17 @@ const STREAK_STREAK_MILESTONES = [
     { level: 365, emoji: '📅' }
 ];
 
+// Initialize RaidHistory table
+setTimeout(async () => {
+    try {
+        const streakManager = module.exports;
+        await streakManager.ensureRaidHistoryTable();
+        console.log('RaidHistory table initialized on startup');
+    } catch (error) {
+        console.error('Failed to initialize RaidHistory table on startup:', error);
+    }
+}, 5000); // Wait 5 seconds to ensure database connection is established
+
 module.exports = {
     async setTriggerWords(guildId, words) {
         if (!Array.isArray(words)) {
@@ -304,23 +315,46 @@ module.exports = {
     },
 
     async isRaidEnabled(guildId) {
-        const config = await GuildConfig.findByPk(guildId);
-        return config ? config.raidEnabled : false; // Default to false if not set
+        try {
+            guildId = String(guildId);
+            
+            const config = await GuildConfig.findOne({
+                where: { guildId },
+                attributes: ['raidEnabled']
+            });
+            
+            return config ? Boolean(config.raidEnabled) : false;
+        } catch (error) {
+            console.error('Error checking if raid system is enabled:', error);
+            return false;
+        }
     },
 
     async setRaidEnabled(guildId, enabled) {
-        await GuildConfig.upsert({
-            guildId,
-            raidEnabled: enabled
-        });
+        try {
+            guildId = String(guildId);
+            
+            const [config, created] = await GuildConfig.upsert({
+                guildId,
+                raidEnabled: Boolean(enabled)
+            }, {
+                returning: true
+            });
+            
+            console.log(`Raid system ${enabled ? 'enabled' : 'disabled'} for guild ${guildId}`);
+            return true;
+        } catch (error) {
+            console.error(`Error ${enabled ? 'enabling' : 'disabling'} raid system:`, error);
+            return false;
+        }
     },
 
     async getRaidConfig(guildId) {
         try {
             guildId = String(guildId);
             
-            // Get server config
-            const guildConfig = await ServerConfig.findOne({
+            // Get guild config
+            const guildConfig = await GuildConfig.findOne({
                 where: { guildId }
             });
             
@@ -341,22 +375,20 @@ module.exports = {
                 };
             }
             
-            // Parse raid config from server settings or use defaults
-            const raidConfig = guildConfig.raidConfig ? JSON.parse(guildConfig.raidConfig) : {};
-            
+            // Create raid config from guild settings or use defaults
             return {
                 enabled: guildConfig.raidEnabled || false,
-                entryThreshold: raidConfig.entryThreshold || 25,
-                minEntryStreak: raidConfig.minEntryStreak || 10, 
-                stealPercentage: raidConfig.stealPercentage || 20,
-                minStealAmount: raidConfig.minStealAmount || 5,
-                maxStealAmount: raidConfig.maxStealAmount || 30,
-                riskPercentage: raidConfig.riskPercentage || 15,
-                minRiskAmount: raidConfig.minRiskAmount || 3,
-                maxRiskAmount: raidConfig.maxRiskAmount || 20,
-                successChance: raidConfig.successChance !== undefined ? raidConfig.successChance : 50,
-                successCooldownHours: raidConfig.successCooldownHours || 4,
-                failureCooldownHours: raidConfig.failureCooldownHours || 2
+                entryThreshold: 25,
+                minEntryStreak: 10,
+                stealPercentage: 20,
+                minStealAmount: guildConfig.raidMinStealAmount || 5,
+                maxStealAmount: guildConfig.raidMaxStealAmount || 30,
+                riskPercentage: guildConfig.raidRiskPercent || 15,
+                minRiskAmount: guildConfig.raidMinRiskAmount || 3,
+                maxRiskAmount: guildConfig.raidMaxRiskAmount || 20,
+                successChance: guildConfig.raidSuccessChance !== undefined ? guildConfig.raidSuccessChance : 50,
+                successCooldownHours: guildConfig.raidSuccessCooldownHours || 4,
+                failureCooldownHours: guildConfig.raidFailureCooldownHours || 2
             };
         } catch (error) {
             console.error('Error in getRaidConfig:', error);
@@ -379,74 +411,39 @@ module.exports = {
     },
 
     async setRaidConfig(guildId, config) {
-        await GuildConfig.upsert({
-            guildId,
-            raidEnabled: config.enabled,
-            raidMaxStealPercent: config.maxStealPercent,
-            raidRiskPercent: config.riskPercent,
-            raidSuccessChance: config.successChance,
-            raidMinStealAmount: config.minStealAmount,
-            raidMaxStealAmount: config.maxStealAmount,
-            raidMinRiskAmount: config.minRiskAmount,
-            raidMaxRiskAmount: config.maxRiskAmount,
-            raidSuccessCooldownHours: config.successCooldownHours,
-            raidFailureCooldownHours: config.failureCooldownHours
-        });
+        try {
+            guildId = String(guildId);
+            
+            // Update guild config with raid settings
+            await GuildConfig.upsert({
+                guildId,
+                raidEnabled: config.enabled !== undefined ? config.enabled : false,
+                raidMaxStealPercent: config.maxStealPercent || config.stealPercentage || 20,
+                raidRiskPercent: config.riskPercent || config.riskPercentage || 15,
+                raidSuccessChance: config.successChance || 50,
+                raidMinStealAmount: config.minStealAmount || 5,
+                raidMaxStealAmount: config.maxStealAmount || 30,
+                raidMinRiskAmount: config.minRiskAmount || 3,
+                raidMaxRiskAmount: config.maxRiskAmount || 20,
+                raidSuccessCooldownHours: config.successCooldownHours || 4,
+                raidFailureCooldownHours: config.failureCooldownHours || 2
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('Error in setRaidConfig:', error);
+            return false;
+        }
     },
 
     async canRaid(guildId, userId) {
-        const raidConfig = await this.getRaidConfig(guildId);
-        
         try {
-            // Try to find any streak for this user to check raid date
-            // Since lastRaidDate might not exist in older database versions, we use a try-catch
-            const userStreaks = await Streak.findAll({
-                where: {
-                    guildId,
-                    userId
-                },
-                attributes: ['id', 'lastRaidDate', 'lastRaidSuccess'],
-                raw: true
-            });
-            
-            if (!userStreaks || userStreaks.length === 0) {
-                // No streaks found, so no cooldown applies
-                return true;
-            }
-            
-            // Find the most recent raid, if any
-            let lastRaidDate = null;
-            let wasSuccessful = false;
-            
-            for (const streak of userStreaks) {
-                if (streak.lastRaidDate) {
-                    const raidDate = new Date(streak.lastRaidDate);
-                    if (!lastRaidDate || raidDate > lastRaidDate) {
-                        lastRaidDate = raidDate;
-                        // If lastRaidSuccess is undefined, default to using failure cooldown (shorter)
-                        wasSuccessful = streak.lastRaidSuccess === true;
-                    }
-                }
-            }
-            
-            if (!lastRaidDate) {
-                // No previous raid found
-                return true;
-            }
-            
-            // Determine applicable cooldown based on success/failure
-            const cooldownHours = wasSuccessful ? 
-                (raidConfig.successCooldownHours || 4) : 
-                (raidConfig.failureCooldownHours || 2);
-            
-            // Calculate time elapsed
-            const now = new Date();
-            const hoursSinceLastRaid = (now - lastRaidDate) / (1000 * 60 * 60);
-            
-            return hoursSinceLastRaid >= cooldownHours;
+            // Use the more robust getRemainingRaidTime function
+            const raidTimeInfo = await this.getRemainingRaidTime(guildId, userId);
+            return raidTimeInfo.canRaid;
         } catch (error) {
-            console.error('Error checking raid cooldown:', error);
-            // If there was an error (like missing column), allow the raid
+            console.error('Error in canRaid:', error);
+            // If there was an error, allow the raid
             return true;
         }
     },
@@ -1258,7 +1255,29 @@ module.exports = {
 
     // New function to update raid configuration (alias for setRaidConfig)
     async updateRaidConfig(guildId, config) {
-        await this.setRaidConfig(guildId, config);
+        try {
+            guildId = String(guildId);
+            
+            // Update guild config with raid settings
+            await GuildConfig.upsert({
+                guildId,
+                raidEnabled: config.enabled !== undefined ? config.enabled : false,
+                raidMaxStealPercent: config.stealPercentage || 20,
+                raidRiskPercent: config.riskPercentage || 15,
+                raidSuccessChance: config.successChance || 50,
+                raidMinStealAmount: config.minStealAmount || 5,
+                raidMaxStealAmount: config.maxStealAmount || 30,
+                raidMinRiskAmount: config.minRiskAmount || 3,
+                raidMaxRiskAmount: config.maxRiskAmount || 20,
+                raidSuccessCooldownHours: config.successCooldownHours || 4,
+                raidFailureCooldownHours: config.failureCooldownHours || 2
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('Error in updateRaidConfig:', error);
+            return false;
+        }
     },
 
     // Add a new function to get the remaining raid cooldown time
@@ -1270,10 +1289,25 @@ module.exports = {
             // Get raid config
             const config = await this.getRaidConfig(guildId);
             
+            // First check if raid is enabled
+            if (!config.enabled) {
+                return { 
+                    canRaid: false, 
+                    message: "The raid system is disabled on this server."
+                };
+            }
+            
             // Find user's raid history
-            const userRaidHistory = await RaidHistory.findOne({
-                where: { guildId, userId }
-            });
+            let userRaidHistory;
+            try {
+                userRaidHistory = await RaidHistory.findOne({
+                    where: { guildId, userId }
+                });
+            } catch (error) {
+                console.error('Error fetching raid history, falling back to defaults:', error);
+                // If RaidHistory table doesn't exist yet, allow raiding
+                return { canRaid: true };
+            }
             
             // If no raid history or never raided, they can raid
             if (!userRaidHistory || !userRaidHistory.lastRaidDate) {
@@ -1301,6 +1335,10 @@ module.exports = {
             // Calculate remaining time in seconds
             const remainingTime = Math.floor((cooldownExpiry - now) / 1000);
             
+            // Calculate hours and minutes for display
+            const remainingHours = Math.floor(remainingTime / 3600);
+            const remainingMinutes = Math.floor((remainingTime % 3600) / 60);
+            
             // Format the remaining time for Discord timestamp
             const remainingTimeFormatted = `<t:${Math.floor(cooldownExpiry.getTime() / 1000)}:R>`;
             
@@ -1309,11 +1347,15 @@ module.exports = {
                 message: `You're on raid cooldown. You can raid again ${remainingTimeFormatted}.`,
                 remainingTime,
                 remainingTimeFormatted,
-                cooldownExpiry
+                remainingHours,
+                remainingMinutes,
+                cooldownExpiry,
+                wasSuccessful: userRaidHistory.lastRaidSuccess
             };
         } catch (error) {
             console.error('Error in getRemainingRaidTime:', error);
-            return { canRaid: false, message: 'An error occurred while checking raid cooldown.' };
+            // Return a safe default - assume they can raid if there's an error
+            return { canRaid: true };
         }
     },
 
@@ -1467,10 +1509,15 @@ module.exports = {
                 }
                 
                 // Store raid attempt in user's raid history
-                await this.updateRaidHistory(guildId, attackerId, {
-                    lastRaidDate: new Date(),
-                    lastRaidSuccess: isSuccess
-                });
+                try {
+                    await this.updateRaidHistory(guildId, attackerId, {
+                        lastRaidDate: new Date(),
+                        lastRaidSuccess: isSuccess
+                    });
+                } catch (historyError) {
+                    console.error('Failed to update raid history, continuing anyway:', historyError);
+                    // Don't fail the raid due to history update issue
+                }
                 
                 await transaction.commit();
                 
@@ -1515,38 +1562,67 @@ module.exports = {
             guildId = String(guildId);
             userId = String(userId);
             
-            // Find or create user's raid history
-            let userRaidHistory = await RaidHistory.findOne({
-                where: { guildId, userId }
-            });
-            
-            if (!userRaidHistory) {
-                userRaidHistory = await RaidHistory.create({
-                    guildId,
-                    userId,
-                    lastRaidDate: historyUpdate.lastRaidDate || null,
-                    lastRaidSuccess: historyUpdate.lastRaidSuccess || false,
-                    totalRaids: 0,
-                    successfulRaids: 0
+            // Make sure RaidHistory exists
+            try {
+                // Find or create user's raid history
+                let userRaidHistory = await RaidHistory.findOne({
+                    where: { guildId, userId }
                 });
+                
+                if (!userRaidHistory) {
+                    userRaidHistory = await RaidHistory.create({
+                        guildId,
+                        userId,
+                        lastRaidDate: historyUpdate.lastRaidDate || null,
+                        lastRaidSuccess: historyUpdate.lastRaidSuccess || false,
+                        totalRaids: 0,
+                        successfulRaids: 0
+                    });
+                }
+                
+                // Update raid statistics
+                const updateData = {
+                    lastRaidDate: historyUpdate.lastRaidDate || userRaidHistory.lastRaidDate,
+                    lastRaidSuccess: historyUpdate.lastRaidSuccess !== undefined ? 
+                        historyUpdate.lastRaidSuccess : userRaidHistory.lastRaidSuccess,
+                    totalRaids: userRaidHistory.totalRaids + 1
+                };
+                
+                if (historyUpdate.lastRaidSuccess) {
+                    updateData.successfulRaids = userRaidHistory.successfulRaids + 1;
+                }
+                
+                // Save the updated history
+                await userRaidHistory.update(updateData);
+                
+                console.log(`Updated raid history for user ${userId} in guild ${guildId}`);
+                return true;
+            } catch (historyError) {
+                // If RaidHistory table doesn't exist yet, try to fallback to Streak
+                console.error('Error updating raid history, attempting fallback:', historyError);
+                
+                try {
+                    // Try to update the streak record instead
+                    const streak = await Streak.findOne({
+                        where: { guildId, userId }
+                    });
+                    
+                    if (streak) {
+                        await streak.update({
+                            lastRaidDate: historyUpdate.lastRaidDate || null,
+                            lastRaidSuccess: historyUpdate.lastRaidSuccess || false
+                        });
+                        console.log(`Used fallback to update raid info in streak for user ${userId}`);
+                        return true;
+                    }
+                } catch (fallbackError) {
+                    console.error('Fallback update also failed:', fallbackError);
+                }
+                
+                // Both attempts failed, but don't break the application
+                console.warn(`Could not update raid history for user ${userId}, but continuing`);
+                return false;
             }
-            
-            // Update raid statistics
-            const updateData = {
-                lastRaidDate: historyUpdate.lastRaidDate || userRaidHistory.lastRaidDate,
-                lastRaidSuccess: historyUpdate.lastRaidSuccess !== undefined ? 
-                    historyUpdate.lastRaidSuccess : userRaidHistory.lastRaidSuccess,
-                totalRaids: userRaidHistory.totalRaids + 1
-            };
-            
-            if (historyUpdate.lastRaidSuccess) {
-                updateData.successfulRaids = userRaidHistory.successfulRaids + 1;
-            }
-            
-            // Save the updated history
-            await userRaidHistory.update(updateData);
-            
-            return true;
         } catch (error) {
             console.error('Error in updateRaidHistory:', error);
             return false;
@@ -1558,6 +1634,13 @@ module.exports = {
         try {
             guildId = String(guildId);
             console.log(`Starting raid data migration for guild ${guildId}...`);
+            
+            // Make sure RaidHistory table exists
+            const tableExists = await this.ensureRaidHistoryTable();
+            if (!tableExists) {
+                console.error('Could not ensure RaidHistory table exists, aborting migration');
+                return 0;
+            }
             
             // Find all streaks with raid data
             const streaksWithRaidData = await Streak.findAll({
@@ -1618,6 +1701,19 @@ module.exports = {
         } catch (error) {
             console.error(`Error migrating raid data for guild ${guildId}:`, error);
             return 0;
+        }
+    },
+
+    // Helper function to ensure RaidHistory table exists
+    async ensureRaidHistoryTable() {
+        try {
+            // Try to sync RaidHistory model directly
+            await RaidHistory.sync({ alter: false });
+            console.log('RaidHistory table created or already exists');
+            return true;
+        } catch (error) {
+            console.error('Error ensuring RaidHistory table exists:', error);
+            return false;
         }
     }
 };
