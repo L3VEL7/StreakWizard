@@ -71,9 +71,17 @@ module.exports = {
                 return;
             }
 
-            // Inform about the bonus chance for initiating the raid
+            // Calculate progressive bonus based on defender's streak size
+            let progressiveBonus = 0;
+            if (targetStreak.count >= 100) progressiveBonus = 15;
+            else if (targetStreak.count >= 75) progressiveBonus = 12;
+            else if (targetStreak.count >= 50) progressiveBonus = 9;
+            else if (targetStreak.count >= 25) progressiveBonus = 6;
+            else if (targetStreak.count >= 10) progressiveBonus = 3;
+
+            // Inform about the bonus chances for initiating the raid
             await interaction.editReply({
-                content: `⚔️ **INITIATING RAID!** ⚔️\n${interaction.user} is raiding ${target}'s "${word}" streaks!\n\n💫 **Raid initiator bonus:** +5% success chance\n\nCalculating result...`,
+                content: `⚔️ **INITIATING RAID!** ⚔️\n${interaction.user} is raiding ${target}'s "${word}" streaks!\n\n💫 **Bonuses:**\n⭐ Raid initiator: +5% success chance\n🎯 Target streak (${targetStreak.count}): +${progressiveBonus}% success chance\n\nCalculating result...`,
                 ephemeral: false
             });
 

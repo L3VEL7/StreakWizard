@@ -901,15 +901,28 @@ module.exports = {
                 stealAmount = Math.max(raidConfig.minStealAmount || 5, stealAmount);
                 stealAmount = Math.min(raidConfig.maxStealAmount || 30, stealAmount);
 
-                // Determine raid success with 5% bonus for initiating the raid
+                // Determine raid success with bonus chances
                 const baseSuccessChance = raidConfig.successChance || 50;
                 const initiatorBonus = 5; // Additional 5% chance for the raid initiator
-                const adjustedSuccessChance = baseSuccessChance + initiatorBonus;
+                
+                // Add progressive bonus based on defender's streak size
+                // This creates a balancing mechanism where higher streaks are slightly easier to raid
+                let progressiveBonus = 0;
+                if (defenderStreak.count >= 100) progressiveBonus = 15; // +15% for streaks 100+
+                else if (defenderStreak.count >= 75) progressiveBonus = 12; // +12% for streaks 75-99
+                else if (defenderStreak.count >= 50) progressiveBonus = 9; // +9% for streaks 50-74
+                else if (defenderStreak.count >= 25) progressiveBonus = 6; // +6% for streaks 25-49
+                else if (defenderStreak.count >= 10) progressiveBonus = 3; // +3% for streaks 10-24
+                
+                // Calculate final success chance
+                const adjustedSuccessChance = baseSuccessChance + initiatorBonus + progressiveBonus;
                 
                 // Log the chance calculation
                 console.log('Raid success chance calculation:', {
                     baseSuccessChance,
                     initiatorBonus,
+                    progressiveBonus,
+                    defenderStreakCount: defenderStreak.count,
                     adjustedSuccessChance,
                     timestamp: new Date().toISOString()
                 });
