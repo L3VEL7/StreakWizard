@@ -956,9 +956,22 @@ module.exports = {
                     throw new Error('Target streak is being rapidly updated. Please try again later.');
                 }
 
-                // Prevent raiding if attacker has insufficient streaks (25% or at least 10)
-                if (attackerStreak.count < Math.max(10, defenderStreak.count * 0.25)) {
-                    throw new Error('You need at least 25% of the target\'s streak count (or at least 10 streaks) to raid');
+                // Prevent raiding if attacker has insufficient streaks
+                const entryThreshold = 25; // 25% threshold
+                const minEntryStreak = 10; // Minimum 10 streaks
+                const requiredStreakPercentage = Math.floor((entryThreshold / 100) * defenderStreak.count);
+                const requiredStreak = Math.max(minEntryStreak, requiredStreakPercentage);
+
+                console.log('Raid threshold calculation:', {
+                    attackerCount: attackerStreak.count,
+                    defenderCount: defenderStreak.count,
+                    entryThreshold,
+                    requiredStreakPercentage,
+                    requiredStreak
+                });
+
+                if (attackerStreak.count < requiredStreak) {
+                    throw new Error(`You need at least ${requiredStreak} streaks to raid this user (${entryThreshold}% of their streak or minimum ${minEntryStreak})`);
                 }
 
                 // Anti-exploit: Maximum streak cap for raids
@@ -1431,9 +1444,17 @@ module.exports = {
                 const minEntryStreak = config.minEntryStreak || 10; // Default: at least 10 streaks needed
                 
                 // Calculate minimum streak needed to raid this defender
-                const requiredStreakPercentage = Math.ceil((entryThreshold / 100) * defenderStreak.count);
-                const requiredStreak = Math.max(requiredStreakPercentage, minEntryStreak);
+                const requiredStreakPercentage = Math.floor((entryThreshold / 100) * defenderStreak.count);
+                const requiredStreak = Math.max(minEntryStreak, requiredStreakPercentage);
                 
+                console.log('Raid threshold calculation:', {
+                    attackerCount: attackerStreak.count,
+                    defenderCount: defenderStreak.count,
+                    entryThreshold,
+                    requiredStreakPercentage,
+                    requiredStreak
+                });
+
                 if (attackerStreak.count < requiredStreak) {
                     await transaction.rollback();
                     return { 
