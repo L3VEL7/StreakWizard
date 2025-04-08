@@ -959,19 +959,23 @@ module.exports = {
                 // Prevent raiding if attacker has insufficient streaks
                 const entryThreshold = 25; // 25% threshold
                 const minEntryStreak = 10; // Minimum 10 streaks
-                const requiredStreakPercentage = Math.floor((entryThreshold / 100) * defenderStreak.count);
-                const requiredStreak = Math.max(minEntryStreak, requiredStreakPercentage);
+                const defenderStreakCount = defenderStreak.count;
+                const percentThreshold = Math.floor((entryThreshold / 100) * defenderStreakCount);
+                const requiredStreak = Math.max(minEntryStreak, percentThreshold);
 
                 console.log('Raid threshold calculation:', {
-                    attackerCount: attackerStreak.count,
-                    defenderCount: defenderStreak.count,
-                    entryThreshold,
-                    requiredStreakPercentage,
-                    requiredStreak
+                    attackerName: attackerId,
+                    attackerStreaks: attackerStreak.count,
+                    defenderName: defenderId,
+                    defenderStreaks: defenderStreakCount,
+                    entryThresholdPercent: entryThreshold,
+                    percentCalculation: `${entryThreshold}% of ${defenderStreakCount} = ${percentThreshold}`,
+                    minEntryRequired: minEntryStreak,
+                    finalRequired: requiredStreak
                 });
 
                 if (attackerStreak.count < requiredStreak) {
-                    throw new Error(`You need at least ${requiredStreak} streaks to raid this user (${entryThreshold}% of their streak or minimum ${minEntryStreak})`);
+                    throw new Error(`You need at least ${requiredStreak} streaks to raid. This is the higher of: (1) minimum ${minEntryStreak} streaks, or (2) ${entryThreshold}% of target's ${defenderStreakCount} streaks = ${percentThreshold} streaks.`);
                 }
 
                 // Anti-exploit: Maximum streak cap for raids
@@ -1444,22 +1448,28 @@ module.exports = {
                 const minEntryStreak = config.minEntryStreak || 10; // Default: at least 10 streaks needed
                 
                 // Calculate minimum streak needed to raid this defender
-                const requiredStreakPercentage = Math.floor((entryThreshold / 100) * defenderStreak.count);
-                const requiredStreak = Math.max(minEntryStreak, requiredStreakPercentage);
-                
+                const defenderStreakCount = defenderStreak.count;
+                const percentThreshold = Math.floor((entryThreshold / 100) * defenderStreakCount);
+                const requiredStreak = Math.max(minEntryStreak, percentThreshold);
+
+                // Add detailed logging to debug the issue
                 console.log('Raid threshold calculation:', {
-                    attackerCount: attackerStreak.count,
-                    defenderCount: defenderStreak.count,
-                    entryThreshold,
-                    requiredStreakPercentage,
-                    requiredStreak
+                    attackerName: attackerId,
+                    attackerStreaks: attackerStreak.count,
+                    defenderName: defenderId,
+                    defenderStreaks: defenderStreakCount,
+                    entryThresholdPercent: entryThreshold,
+                    percentCalculation: `${entryThreshold}% of ${defenderStreakCount} = ${percentThreshold}`,
+                    minEntryRequired: minEntryStreak,
+                    finalRequired: requiredStreak
                 });
 
                 if (attackerStreak.count < requiredStreak) {
                     await transaction.rollback();
+                    // Improved error message that's clearer about the calculation
                     return { 
                         success: false, 
-                        message: `You need at least ${requiredStreak} streaks to raid this user (${entryThreshold}% of their streak or minimum ${minEntryStreak}).` 
+                        message: `You need at least ${requiredStreak} streaks to raid. This is the higher of: (1) minimum ${minEntryStreak} streaks, or (2) ${entryThreshold}% of target's ${defenderStreakCount} streaks = ${percentThreshold} streaks.` 
                     };
                 }
                 
