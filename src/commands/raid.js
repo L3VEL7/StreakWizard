@@ -38,129 +38,127 @@ module.exports = {
                 return;
             }
 
-            // Check for cooldown
-            const cooldownInfo = await streakManager.getRemainingRaidTime(interaction.guildId, interaction.user.id);
-            if (!cooldownInfo.canRaid) {
-                const cooldownType = cooldownInfo.wasSuccessful ? 'successful' : 'failed';
+            // Check if the word is valid
+            const isValidWord = await streakManager.isValidTriggerWord(interaction.guildId, word);
+            if (!isValidWord) {
                 await interaction.editReply({
-                    content: `⏳ You must wait ${cooldownInfo.remainingHours}h ${cooldownInfo.remainingMinutes}m before raiding again.\n(Cooldown after a ${cooldownType} raid: ${cooldownInfo.wasSuccessful ? raidConfig.successCooldownHours : raidConfig.failureCooldownHours} hours)`,
+                    content: `❌ "${word}" is not a valid trigger word in this server.`,
                     ephemeral: false
                 });
                 return;
             }
 
-            // Check if user has enough streaks to raid
-            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
-            const attackerStreak = userStreaks.find(s => s.trigger === word);
-            if (!attackerStreak || attackerStreak.count < 2) {
-                await interaction.editReply({
-                    content: '❌ You need at least 2 streaks to raid.',
-                    ephemeral: false
-                });
-                return;
-            }
-
-            // Check if target has enough streaks to be raided
-            const targetStreaks = await streakManager.getUserStreaks(interaction.guildId, target.id);
-            const targetStreak = targetStreaks.find(s => s.trigger === word);
-            if (!targetStreak || targetStreak.count < 2) {
-                await interaction.editReply({
-                    content: `❌ ${target} doesn't have enough streaks to raid.`,
-                    ephemeral: false
-                });
-                return;
-            }
-
-            // Calculate progressive bonus based on defender's streak size
-            let progressiveBonus = 0;
-            if (targetStreak.count >= 100) progressiveBonus = 15;
-            else if (targetStreak.count >= 75) progressiveBonus = 12;
-            else if (targetStreak.count >= 50) progressiveBonus = 9;
-            else if (targetStreak.count >= 25) progressiveBonus = 6;
-            else if (targetStreak.count >= 10) progressiveBonus = 3;
-            
-            // Calculate streak ratio for dynamic adjustments
-            let streakRatio = 1.0;
-            let riskAdjustment = 1.0;
-            let stealBonus = 0;
-            
-            if (attackerStreak && targetStreak) {
-                streakRatio = attackerStreak.count / targetStreak.count;
-                
-                // Calculate dynamic adjustments for underdogs
-                if (streakRatio < 0.75) {
-                    riskAdjustment = Math.max(0.6, streakRatio);
-                    
-                    if (streakRatio < 0.5) {
-                        stealBonus = 10; // +10% bonus for significant underdogs
-                    } else {
-                        stealBonus = 5; // +5% bonus for moderate underdogs
-                    }
-                }
-            }
-            
-            // Prepare underdog bonus messages
-            let underdogMessages = [];
-            if (stealBonus > 0) {
-                underdogMessages.push(`✅ Underdog bonus: +${stealBonus}% steal amount`);
-            }
-            if (riskAdjustment < 1.0) {
-                const riskReduction = Math.round((1 - riskAdjustment) * 100);
-                underdogMessages.push(`🛡️ Risk reduction: -${riskReduction}%`);
-            }
-
-            // Inform about the bonus chances for initiating the raid
+            // Let the user know we're checking raid conditions
             await interaction.editReply({
-                content: `⚔️ **INITIATING RAID!** ⚔️\n${interaction.user} is raiding ${target}'s "${word}" streaks!\n\n💫 **Bonuses:**\n⭐ Raid initiator: +5% success chance\n🎯 Target streak (${targetStreak.count}): +${progressiveBonus}% success chance${underdogMessages.length > 0 ? '\n' + underdogMessages.join('\n') : ''}\n\nCalculating result...`,
+                content: `⚔️ Preparing to raid ${target}'s "${word}" streaks...\nChecking conditions...`,
                 ephemeral: false
             });
 
-            // Perform the raid
-            const result = await streakManager.raidStreak(
+            // Get user streaks for display
+            const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
+            const targetStreaks = await streakManager.getUserStreaks(interaction.guildId, target.id);
+            
+            const attackerStreak = userStreaks.find(s => s.trigger === word);
+            const targetStreak = targetStreaks.find(s => s.trigger === word);
+            
+            const attackerCount = attackerStreak ? attackerStreak.count : 0;
+            const defenderCount = targetStreak ? targetStreak.count : 0;
+
+            // Perform the raid using the new function
+            const result = await streakManager.raidUserStreak(
                 interaction.guildId,
                 interaction.user.id,
                 target.id,
                 word
             );
 
-            if (result.success) {
+            // If the raid couldn't be initiated due to pre-conditions
+            if (!result.success) {
                 await interaction.editReply({
-                    content: `⚔️ **RAID SUCCESSFUL!** ⚔️\n${interaction.user} raided ${target} and stole ${result.stealAmount} "${word}" streaks!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}\n\n⏳ Cooldown: ${raidConfig.successCooldownHours || 4} hours`,
+                    content: `❌ ${result.message}`,
+                    ephemeral: false
+                });
+                return;
+            }
+
+            // Determine success or failure of the raid
+            if (result.raidSuccess) {
+                // Successful raid
+                const embed = new EmbedBuilder()
+                    .setTitle('⚔️ RAID SUCCESSFUL! ⚔️')
+                    .setColor(0x00FF00)
+                    .setDescription(`${interaction.user} raided ${target} and stole **${result.stealAmount}** "${word}" streaks!`)
+                    .addFields(
+                        { 
+                            name: `${interaction.user.username}'s Streak`, 
+                            value: `${result.attackerOldStreak} → **${result.attackerNewStreak}** (+${result.stealAmount})`, 
+                            inline: true 
+                        },
+                        { 
+                            name: `${target.username}'s Streak`, 
+                            value: `${result.defenderOldStreak} → **${result.defenderNewStreak}** (-${result.stealAmount})`, 
+                            inline: true 
+                        },
+                        { 
+                            name: 'Raid Stats', 
+                            value: `✅ Success rate: ${result.successChance}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
+                            inline: false 
+                        },
+                        { 
+                            name: 'Cooldown', 
+                            value: result.cooldownMessage, 
+                            inline: false 
+                        }
+                    )
+                    .setTimestamp();
+
+                await interaction.editReply({
+                    content: null,
+                    embeds: [embed],
                     ephemeral: false
                 });
             } else {
+                // Failed raid
+                const embed = new EmbedBuilder()
+                    .setTitle('💀 RAID FAILED! 💀')
+                    .setColor(0xFF0000)
+                    .setDescription(`${interaction.user} tried to raid ${target} but failed and lost **${result.riskAmount}** "${word}" streaks to them!`)
+                    .addFields(
+                        { 
+                            name: `${interaction.user.username}'s Streak`, 
+                            value: `${result.attackerOldStreak} → **${result.attackerNewStreak}** (-${result.riskAmount})`, 
+                            inline: true 
+                        },
+                        { 
+                            name: `${target.username}'s Streak`, 
+                            value: `${result.defenderOldStreak} → **${result.defenderNewStreak}** (+${result.riskAmount})`, 
+                            inline: true 
+                        },
+                        { 
+                            name: 'Raid Stats', 
+                            value: `❌ Success rate: ${result.successChance}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
+                            inline: false 
+                        },
+                        { 
+                            name: 'Cooldown', 
+                            value: result.cooldownMessage, 
+                            inline: false 
+                        }
+                    )
+                    .setTimestamp();
+
                 await interaction.editReply({
-                    content: `💀 **RAID FAILED!** 💀\n${interaction.user} tried to raid ${target} but failed and lost ${result.riskAmount} "${word}" streaks!\n${target} gained ${result.riskAmount} streaks as a defense bonus!\n${interaction.user}'s new streak: ${result.attackerNewCount}\n${target}'s new streak: ${result.defenderNewCount}\n\n⏳ Cooldown: ${raidConfig.failureCooldownHours || 2} hours`,
+                    content: null,
+                    embeds: [embed],
                     ephemeral: false
                 });
             }
         } catch (error) {
             console.error('Error in raid command:', error);
             
-            // Extract specific error messages to show the user
-            let errorMessage = '❌ An error occurred while processing your raid.';
-            
-            // Common raid errors with more user-friendly messages
-            if (error.message.includes("25% of the target's streak count")) {
-                errorMessage = `❌ You need at least 25% of ${target}'s streak count (or at least 10 streaks) to raid them.`;
-            } else if (error.message.includes("Target has no streak to raid")) {
-                errorMessage = `❌ ${target} doesn't have any "${word}" streaks to raid.`;
-            } else if (error.message.includes("You need a streak to raid")) {
-                errorMessage = `❌ You need "${word}" streaks to raid someone.`;
-            } else if (error.message.includes("must wait")) {
-                errorMessage = `⏳ ${error.message}`;
-            } else if (error.message.includes("Raid feature is not enabled")) {
-                errorMessage = `❌ The raid system is currently disabled in this server.`;
-            } else if (error.message.includes("Cannot raid yourself")) {
-                errorMessage = `❌ You cannot raid yourself!`;
-            } else if (error.message.includes("Target streak is too high")) {
-                errorMessage = `❌ ${target}'s streak is too high to raid (maximum 10,000).`;
-            } else if (error.message.includes("rapidly updated")) {
-                errorMessage = `⚠️ ${target} is updating their streaks too quickly. Please try again later.`;
-            }
-            
+            // Generic error message with more details in console
             await interaction.editReply({
-                content: errorMessage,
+                content: `❌ An error occurred while processing your raid: ${error.message}`,
                 ephemeral: false
             });
         }

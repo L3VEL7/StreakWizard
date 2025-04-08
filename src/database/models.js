@@ -192,6 +192,42 @@ const Streak = sequelize.define('Streak', {
     }
 });
 
+// Define RaidHistory model
+const RaidHistory = sequelize.define('RaidHistory', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    guildId: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    userId: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    lastRaidDate: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+    lastRaidSuccess: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false
+    },
+    totalRaids: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+    },
+    successfulRaids: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+    }
+});
+
+// Add composite index for faster lookups
+RaidHistory.addIndex = ['guildId', 'userId'];
+
 // Add hook to update best streak
 Streak.addHook('beforeSave', async (streak) => {
     if (streak.changed('count') && streak.count > streak.bestStreak) {
@@ -428,6 +464,64 @@ async function migrateDatabase() {
                     }
                 } else {
                     console.log(`Column ${columnName} already exists, skipping...`);
+                }
+            }
+
+            // Create or update RaidHistory table
+            console.log('Checking RaidHistory table...');
+            const hasRaidHistoryTable = await checkTableExists('RaidHistories');
+            
+            if (!hasRaidHistoryTable) {
+                console.log('Creating RaidHistory table...');
+                await sequelize.query(`
+                    CREATE TABLE "RaidHistories" (
+                        "id" SERIAL PRIMARY KEY,
+                        "guildId" VARCHAR(255) NOT NULL,
+                        "userId" VARCHAR(255) NOT NULL,
+                        "lastRaidDate" TIMESTAMP WITH TIME ZONE,
+                        "lastRaidSuccess" BOOLEAN DEFAULT false,
+                        "totalRaids" INTEGER DEFAULT 0,
+                        "successfulRaids" INTEGER DEFAULT 0,
+                        "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                        "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
+                    )
+                `, { transaction });
+                
+                // Create index for faster lookups
+                await sequelize.query(`
+                    CREATE INDEX "raid_history_guild_user_idx" ON "RaidHistories" ("guildId", "userId")
+                `, { transaction });
+                
+                console.log('Created RaidHistory table successfully');
+            } else {
+                console.log('RaidHistory table already exists, checking columns...');
+                
+                // Check for required columns
+                const columnsToCheck = [
+                    { name: 'lastRaidDate', type: 'TIMESTAMP WITH TIME ZONE' },
+                    { name: 'lastRaidSuccess', type: 'BOOLEAN DEFAULT false' }, 
+                    { name: 'totalRaids', type: 'INTEGER DEFAULT 0' },
+                    { name: 'successfulRaids', type: 'INTEGER DEFAULT 0' }
+                ];
+                
+                for (const column of columnsToCheck) {
+                    const hasColumn = await checkColumnExists('RaidHistories', column.name);
+                    if (!hasColumn) {
+                        console.log(`Adding ${column.name} column to RaidHistories...`);
+                        try {
+                            await sequelize.query(
+                                `ALTER TABLE "RaidHistories" ADD COLUMN "${column.name}" ${column.type}`,
+                                { transaction }
+                            );
+                            console.log(`Added ${column.name} column to RaidHistories`);
+                        } catch (columnError) {
+                            if (columnError.parent && columnError.parent.code === '42701') {
+                                console.log(`Column ${column.name} already exists, skipping...`);
+                            } else {
+                                console.error(`Error adding ${column.name} column:`, columnError);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -694,6 +788,7 @@ async function initializeDatabase() {
 module.exports = {
     GuildConfig,
     Streak,
+    RaidHistory,
     migrateDatabase,
     withRetry,
     initializeDatabase

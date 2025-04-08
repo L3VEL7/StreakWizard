@@ -1,4 +1,4 @@
-const { GuildConfig, Streak } = require('../database/models');
+const { GuildConfig, Streak, ServerConfig, RaidHistory } = require('../database/models');
 const { Sequelize, Op } = require('sequelize');
 const sequelize = require('../database/config');
 
@@ -316,22 +316,66 @@ module.exports = {
     },
 
     async getRaidConfig(guildId) {
-        const config = await GuildConfig.findByPk(guildId);
-        return {
-            enabled: config ? config.raidEnabled : false,
-            // Percentage-based settings
-            maxStealPercent: config ? config.raidMaxStealPercent : 20,
-            riskPercent: config ? config.raidRiskPercent : 15,
-            successChance: config ? config.raidSuccessChance : 50,
-            // Added minimum and maximum values
-            minStealAmount: config ? config.raidMinStealAmount : 5,
-            maxStealAmount: config ? config.raidMaxStealAmount : 30,
-            minRiskAmount: config ? config.raidMinRiskAmount : 3,
-            maxRiskAmount: config ? config.raidMaxRiskAmount : 20,
-            // Different cooldowns based on outcome
-            successCooldownHours: config ? config.raidSuccessCooldownHours : 4,
-            failureCooldownHours: config ? config.raidFailureCooldownHours : 2
-        };
+        try {
+            guildId = String(guildId);
+            
+            // Get server config
+            const guildConfig = await ServerConfig.findOne({
+                where: { guildId }
+            });
+            
+            if (!guildConfig) {
+                return {
+                    enabled: false,
+                    entryThreshold: 25,
+                    minEntryStreak: 10,
+                    stealPercentage: 20,
+                    minStealAmount: 5,
+                    maxStealAmount: 30,
+                    riskPercentage: 15,
+                    minRiskAmount: 3,
+                    maxRiskAmount: 20,
+                    successChance: 50,
+                    successCooldownHours: 4,
+                    failureCooldownHours: 2
+                };
+            }
+            
+            // Parse raid config from server settings or use defaults
+            const raidConfig = guildConfig.raidConfig ? JSON.parse(guildConfig.raidConfig) : {};
+            
+            return {
+                enabled: guildConfig.raidEnabled || false,
+                entryThreshold: raidConfig.entryThreshold || 25,
+                minEntryStreak: raidConfig.minEntryStreak || 10, 
+                stealPercentage: raidConfig.stealPercentage || 20,
+                minStealAmount: raidConfig.minStealAmount || 5,
+                maxStealAmount: raidConfig.maxStealAmount || 30,
+                riskPercentage: raidConfig.riskPercentage || 15,
+                minRiskAmount: raidConfig.minRiskAmount || 3,
+                maxRiskAmount: raidConfig.maxRiskAmount || 20,
+                successChance: raidConfig.successChance !== undefined ? raidConfig.successChance : 50,
+                successCooldownHours: raidConfig.successCooldownHours || 4,
+                failureCooldownHours: raidConfig.failureCooldownHours || 2
+            };
+        } catch (error) {
+            console.error('Error in getRaidConfig:', error);
+            // Return default config on error
+            return {
+                enabled: false,
+                entryThreshold: 25,
+                minEntryStreak: 10,
+                stealPercentage: 20,
+                minStealAmount: 5,
+                maxStealAmount: 30,
+                riskPercentage: 15,
+                minRiskAmount: 3,
+                maxRiskAmount: 20,
+                successChance: 50,
+                successCooldownHours: 4,
+                failureCooldownHours: 2
+            };
+        }
     },
 
     async setRaidConfig(guildId, config) {
@@ -408,69 +452,113 @@ module.exports = {
     },
 
     async gambleStreak(guildId, userId, word, percentage, choice) {
-        // Start a transaction with SERIALIZABLE isolation level
-        const transaction = await sequelize.transaction({
-            isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.SERIALIZABLE
-        });
-
         try {
-            // Validate percentage (1-100)
-            if (percentage < 1 || percentage > 100) {
-                throw new Error('Percentage must be between 1 and 100');
+            // Validate parameters
+            guildId = String(guildId);
+            userId = String(userId);
+            word = String(word || '').toLowerCase().trim();
+            
+            // Ensure percentage is a valid number between 0-100
+            let validPercentage = Number(percentage);
+            if (isNaN(validPercentage) || validPercentage <= 0) {
+                return { success: false, message: 'Invalid gamble percentage. Must be a positive number.' };
             }
-
-            // Get current streak with lock
+            
+            // Cap at 100% if someone tries to go higher
+            validPercentage = Math.min(100, validPercentage);
+            
+            // Validate choice is either 'double' or 'half'
+            if (choice !== 'double' && choice !== 'half') {
+                return { success: false, message: 'Invalid choice. Must be either "double" or "half".' };
+            }
+            
+            // Get gambling config
+            const config = await this.getGamblingConfig(guildId);
+            if (!config || !config.enabled) {
+                return { success: false, message: 'Gambling is not enabled on this server.' };
+            }
+            
+            // Check if percentage is above max allowed
+            const maxPercentage = config.maxGamblePercentage || 50;
+            if (validPercentage > maxPercentage) {
+                return { 
+                    success: false, 
+                    message: `Gamble percentage cannot exceed ${maxPercentage}%. Please choose a lower percentage.` 
+                };
+            }
+            
+            // Find the user's streak for this word
             const streak = await Streak.findOne({
                 where: {
                     guildId,
                     userId,
-                    triggerWord: word.trim().toLowerCase()
-                },
-                lock: Sequelize.Transaction.LOCK.UPDATE
+                    word
+                }
             });
-
-            if (!streak) {
-                throw new Error('No streak found for this word');
-            }
-
-            // Calculate gamble amount
-            const gambleAmount = Math.floor(streak.count * (percentage / 100));
             
-            // Due to floating point precision, we might get values slightly less than 1
-            // Check if the actual amount is at least 1 instead of the calculated amount
-            if (streak.count < 1 || percentage <= 0 || gambleAmount < 1) {
-                // Log for debugging
-                console.log(`Gamble rejected - streak.count: ${streak.count}, percentage: ${percentage}, gambleAmount: ${gambleAmount}`);
-                throw new Error('Gamble amount must be at least 1 streak');
+            if (!streak) {
+                return { success: false, message: `You don't have a streak for '${word}' to gamble with.` };
             }
-
-            // Perform coin flip
-            const result = Math.random() < 0.5 ? 'heads' : 'tails';
-            const won = result === choice;
-
-            // Update streak
-            if (won) {
-                streak.count += gambleAmount;
+            
+            const currentStreak = streak.count;
+            if (currentStreak <= 0) {
+                return { success: false, message: `You need a positive streak to gamble. Your current streak is ${currentStreak}.` };
+            }
+            
+            // Calculate amount to gamble (rounded to nearest integer)
+            const gambleAmount = Math.round((validPercentage / 100) * currentStreak);
+            if (gambleAmount <= 0) {
+                return { success: false, message: 'Gamble amount is too small. Please use a higher percentage or build a larger streak.' };
+            }
+            
+            // Get success chance from config (default to 50% if not set)
+            const successChance = config.successChance !== undefined ? config.successChance : 50;
+            
+            // Determine if gamble is successful
+            const random = Math.random() * 100;
+            const isSuccess = random <= successChance;
+            
+            let newStreakCount;
+            let resultMessage;
+            
+            if (isSuccess) {
+                if (choice === 'double') {
+                    newStreakCount = currentStreak + gambleAmount;
+                    resultMessage = `Success! You doubled ${gambleAmount} streaks (${validPercentage}% of your current streak). Your streak for '${word}' is now ${newStreakCount}.`;
+                } else {
+                    // 'half' - player risked less for a smaller reward
+                    const halfGambleAmount = Math.ceil(gambleAmount / 2);
+                    newStreakCount = currentStreak + halfGambleAmount;
+                    resultMessage = `Success! You gained ${halfGambleAmount} streaks (half of your ${validPercentage}% gamble). Your streak for '${word}' is now ${newStreakCount}.`;
+                }
             } else {
-                streak.count -= gambleAmount;
-                if (streak.count < 1) streak.count = 1; // Prevent negative streaks
+                if (choice === 'double') {
+                    newStreakCount = Math.max(0, currentStreak - gambleAmount);
+                    resultMessage = `Failed! You lost ${gambleAmount} streaks (${validPercentage}% of your streak). Your streak for '${word}' is now ${newStreakCount}.`;
+                } else {
+                    // 'half' - player risked less, so loses less
+                    const halfGambleAmount = Math.ceil(gambleAmount / 2);
+                    newStreakCount = Math.max(0, currentStreak - halfGambleAmount);
+                    resultMessage = `Failed! You lost ${halfGambleAmount} streaks (half of your ${validPercentage}% gamble). Your streak for '${word}' is now ${newStreakCount}.`;
+                }
             }
-
-            await streak.save({ transaction });
-
-            // Commit the transaction
-            await transaction.commit();
-
+            
+            // Update the streak in the database
+            await streak.update({ count: newStreakCount });
+            
             return {
-                won,
-                result,
-                newCount: streak.count,
-                gambleAmount
+                success: true,
+                result: isSuccess,
+                message: resultMessage,
+                oldStreak: currentStreak,
+                newStreak: newStreakCount,
+                difference: newStreakCount - currentStreak,
+                gambleAmount: gambleAmount,
+                percentageUsed: validPercentage
             };
         } catch (error) {
-            // Rollback the transaction on error
-            await transaction.rollback();
-            throw error;
+            console.error('Error in gambleStreak:', error);
+            return { success: false, message: `An error occurred while gambling: ${error.message}` };
         }
     },
 
@@ -919,7 +1007,7 @@ module.exports = {
                 // Add stealBonus for underdogs
                 const stealPercent = Math.min(
                     maxStealPercent + stealBonus,
-                    Math.floor(Math.random() * maxStealPercent * 0.9) + Math.floor(maxStealPercent * 0.3) + stealBonus
+                    Math.floor(Math.random() * (maxStealPercent * 0.7)) + Math.floor(maxStealPercent * 0.3) + stealBonus
                 );
                 
                 let stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
@@ -941,8 +1029,8 @@ module.exports = {
                 else if (defenderStreak.count >= 25) progressiveBonus = 6; // +6% for streaks 25-49
                 else if (defenderStreak.count >= 10) progressiveBonus = 3; // +3% for streaks 10-24
                 
-                // Calculate final success chance
-                const adjustedSuccessChance = baseSuccessChance + initiatorBonus + progressiveBonus;
+                // Calculate final success chance with a cap of 95% to avoid guaranteed raids
+                const adjustedSuccessChance = Math.min(95, baseSuccessChance + initiatorBonus + progressiveBonus);
                 
                 // Log the chance calculation and dynamic adjustments
                 console.log('Raid dynamics calculation:', {
@@ -956,6 +1044,8 @@ module.exports = {
                     attackerStreakCount: attackerStreak.count,
                     adjustedSuccessChance,
                     stealPercent,
+                    stealAmount,
+                    riskAmount,
                     adjustedRiskPercent: calculatedRiskPercent * riskAdjustment,
                     timestamp: new Date().toISOString()
                 });
@@ -1173,84 +1263,361 @@ module.exports = {
 
     // Add a new function to get the remaining raid cooldown time
     async getRemainingRaidTime(guildId, userId) {
-        const raidConfig = await this.getRaidConfig(guildId);
-        
         try {
-            // Try to find any streak for this user to check raid date
-            const userStreaks = await Streak.findAll({
-                where: {
-                    guildId,
-                    userId
-                },
-                attributes: ['id', 'lastRaidDate', 'lastRaidSuccess'],
-                raw: true
+            guildId = String(guildId);
+            userId = String(userId);
+            
+            // Get raid config
+            const config = await this.getRaidConfig(guildId);
+            
+            // Find user's raid history
+            const userRaidHistory = await RaidHistory.findOne({
+                where: { guildId, userId }
             });
             
-            if (!userStreaks || userStreaks.length === 0) {
-                // No streaks found, so no cooldown applies
-                return { 
-                    canRaid: true, 
-                    remainingHours: 0, 
-                    remainingMinutes: 0,
-                    wasSuccessful: false
-                };
+            // If no raid history or never raided, they can raid
+            if (!userRaidHistory || !userRaidHistory.lastRaidDate) {
+                return { canRaid: true };
             }
             
-            // Find the most recent raid, if any
-            let lastRaidDate = null;
-            let wasSuccessful = false;
+            // Get last raid date
+            const lastRaidDate = new Date(userRaidHistory.lastRaidDate);
+            const now = new Date();
             
-            for (const streak of userStreaks) {
-                if (streak.lastRaidDate) {
-                    const raidDate = new Date(streak.lastRaidDate);
-                    if (!lastRaidDate || raidDate > lastRaidDate) {
-                        lastRaidDate = raidDate;
-                        // If lastRaidSuccess is undefined, default to using failure cooldown
-                        wasSuccessful = streak.lastRaidSuccess === true;
+            // Get appropriate cooldown based on last raid success
+            const cooldownHours = userRaidHistory.lastRaidSuccess ? 
+                (config.successCooldownHours || 4) : 
+                (config.failureCooldownHours || 2);
+            
+            // Calculate when cooldown expires
+            const cooldownExpiry = new Date(lastRaidDate);
+            cooldownExpiry.setHours(cooldownExpiry.getHours() + cooldownHours);
+            
+            // Check if cooldown has expired
+            if (now >= cooldownExpiry) {
+                return { canRaid: true };
+            }
+            
+            // Calculate remaining time in seconds
+            const remainingTime = Math.floor((cooldownExpiry - now) / 1000);
+            
+            // Format the remaining time for Discord timestamp
+            const remainingTimeFormatted = `<t:${Math.floor(cooldownExpiry.getTime() / 1000)}:R>`;
+            
+            return {
+                canRaid: false,
+                message: `You're on raid cooldown. You can raid again ${remainingTimeFormatted}.`,
+                remainingTime,
+                remainingTimeFormatted,
+                cooldownExpiry
+            };
+        } catch (error) {
+            console.error('Error in getRemainingRaidTime:', error);
+            return { canRaid: false, message: 'An error occurred while checking raid cooldown.' };
+        }
+    },
+
+    async raidUserStreak(guildId, attackerId, defenderId, word) {
+        try {
+            // Validate parameters
+            guildId = String(guildId);
+            attackerId = String(attackerId);
+            defenderId = String(defenderId);
+            word = String(word || '').trim().toLowerCase();
+            
+            if (!word) {
+                return { success: false, message: 'Invalid trigger word.' };
+            }
+            
+            // Get raid configuration
+            const config = await this.getRaidConfig(guildId);
+            if (!config || !config.enabled) {
+                return { success: false, message: 'Raiding is not enabled on this server.' };
+            }
+            
+            // Check if raider has an active raid cooldown
+            const cooldownInfo = await this.getRemainingRaidTime(guildId, attackerId);
+            if (!cooldownInfo.canRaid) {
+                return { success: false, message: cooldownInfo.message };
+            }
+            
+            // Prevent raiding yourself
+            if (attackerId === defenderId) {
+                return { success: false, message: 'You cannot raid yourself.' };
+            }
+            
+            // Find attacker streak
+            const attackerStreak = await Streak.findOne({
+                where: {
+                    guildId,
+                    userId: attackerId,
+                    triggerWord: word
+                }
+            });
+            
+            if (!attackerStreak) {
+                return { success: false, message: `You don't have a streak for '${word}' to raid with.` };
+            }
+            
+            if (attackerStreak.count < 1) {
+                return { success: false, message: `You need a positive streak to raid. Your current streak is ${attackerStreak.count}.` };
+            }
+            
+            // Find defender streak
+            const defenderStreak = await Streak.findOne({
+                where: {
+                    guildId,
+                    userId: defenderId,
+                    triggerWord: word
+                }
+            });
+            
+            if (!defenderStreak) {
+                return { success: false, message: `Target user doesn't have a streak for '${word}'.` };
+            }
+            
+            if (defenderStreak.count < 1) {
+                return { success: false, message: `Target user has no streaks for '${word}' to raid.` };
+            }
+            
+            // Start a transaction to ensure consistency
+            const transaction = await sequelize.transaction();
+            
+            try {
+                // Get raid entry threshold
+                const entryThreshold = config.entryThreshold || 25; // Default: 25% of defender's streak
+                const minEntryStreak = config.minEntryStreak || 10; // Default: at least 10 streaks needed
+                
+                // Calculate minimum streak needed to raid this defender
+                const requiredStreakPercentage = Math.ceil((entryThreshold / 100) * defenderStreak.count);
+                const requiredStreak = Math.max(requiredStreakPercentage, minEntryStreak);
+                
+                if (attackerStreak.count < requiredStreak) {
+                    await transaction.rollback();
+                    return { 
+                        success: false, 
+                        message: `You need at least ${requiredStreak} streaks to raid this user (${entryThreshold}% of their streak or minimum ${minEntryStreak}).` 
+                    };
+                }
+                
+                // Determine steal amount (percentage of defender's streaks)
+                const stealPercentage = config.stealPercentage || 20; // Default: 20%
+                const minStealAmount = config.minStealAmount || 5; // Default: minimum 5 streaks
+                const maxStealAmount = config.maxStealAmount || 30; // Default: maximum 30 streaks
+                
+                // Calculate base steal amount
+                let stealAmount = Math.round((stealPercentage / 100) * defenderStreak.count);
+                
+                // Apply min/max limits
+                stealAmount = Math.min(maxStealAmount, Math.max(minStealAmount, stealAmount));
+                
+                // Ensure we don't steal more than the defender has
+                stealAmount = Math.min(stealAmount, defenderStreak.count - 1);
+                
+                // Determine risk amount (percentage of attacker's streaks)
+                const riskPercentage = config.riskPercentage || 15; // Default: 15% 
+                const minRiskAmount = config.minRiskAmount || 3; // Default: minimum 3 streaks
+                const maxRiskAmount = config.maxRiskAmount || 20; // Default: maximum 20 streaks
+                
+                // Calculate base risk amount
+                let riskAmount = Math.round((riskPercentage / 100) * attackerStreak.count);
+                
+                // Apply min/max limits
+                riskAmount = Math.min(maxRiskAmount, Math.max(minRiskAmount, riskAmount));
+                
+                // Ensure we don't risk more than the attacker has
+                riskAmount = Math.min(riskAmount, attackerStreak.count - 1);
+                
+                // Get raid success chance (default 50%)
+                const successChance = config.successChance !== undefined ? config.successChance : 50;
+                
+                // Determine raid success
+                const random = Math.random() * 100;
+                const isSuccess = random <= successChance;
+                
+                // Get cooldown hours from config
+                const cooldownHours = isSuccess ? 
+                    (config.successCooldownHours || 4) : // Default: 4 hours
+                    (config.failureCooldownHours || 2);  // Default: 2 hours
+                
+                let resultMessage = '';
+                let attackerNewStreak = attackerStreak.count;
+                let defenderNewStreak = defenderStreak.count;
+                
+                if (isSuccess) {
+                    // Attacker succeeded - takes streaks from defender
+                    attackerNewStreak += stealAmount;
+                    defenderNewStreak -= stealAmount;
+                    
+                    // Update both streaks
+                    await attackerStreak.update({ count: attackerNewStreak }, { transaction });
+                    await defenderStreak.update({ count: Math.max(1, defenderNewStreak) }, { transaction });
+                    
+                    resultMessage = `Raid successful! You stole ${stealAmount} streaks from <@${defenderId}>. Your streak is now ${attackerNewStreak}.`;
+                } else {
+                    // Attacker failed - loses streaks to defender
+                    attackerNewStreak -= riskAmount;
+                    defenderNewStreak += riskAmount;
+                    
+                    // Update both streaks
+                    await attackerStreak.update({ count: Math.max(1, attackerNewStreak) }, { transaction });
+                    await defenderStreak.update({ count: defenderNewStreak }, { transaction });
+                    
+                    resultMessage = `Raid failed! You lost ${riskAmount} streaks to <@${defenderId}>. Your streak is now ${Math.max(1, attackerNewStreak)}.`;
+                }
+                
+                // Store raid attempt in user's raid history
+                await this.updateRaidHistory(guildId, attackerId, {
+                    lastRaidDate: new Date(),
+                    lastRaidSuccess: isSuccess
+                });
+                
+                await transaction.commit();
+                
+                // Format next raid time
+                const nextRaidDate = new Date();
+                nextRaidDate.setHours(nextRaidDate.getHours() + cooldownHours);
+                const nextRaidTimeFormatted = `<t:${Math.floor(nextRaidDate.getTime() / 1000)}:R>`;
+                
+                return {
+                    success: true,
+                    raidSuccess: isSuccess,
+                    message: resultMessage,
+                    cooldownMessage: `You can raid again ${nextRaidTimeFormatted}.`,
+                    cooldownHours,
+                    attackerId,
+                    defenderId,
+                    word,
+                    attackerOldStreak: attackerStreak.count,
+                    attackerNewStreak: Math.max(1, attackerNewStreak),
+                    defenderOldStreak: defenderStreak.count,
+                    defenderNewStreak: Math.max(1, defenderNewStreak),
+                    stealAmount,
+                    riskAmount,
+                    entryThreshold,
+                    minEntryStreak,
+                    successChance,
+                    successRoll: random,
+                    nextRaidTime: nextRaidDate
+                };
+            } catch (error) {
+                await transaction.rollback();
+                throw error;
+            }
+        } catch (error) {
+            console.error('Error in raidUserStreak:', error);
+            return { success: false, message: `An error occurred while raiding: ${error.message}` };
+        }
+    },
+
+    async updateRaidHistory(guildId, userId, historyUpdate) {
+        try {
+            guildId = String(guildId);
+            userId = String(userId);
+            
+            // Find or create user's raid history
+            let userRaidHistory = await RaidHistory.findOne({
+                where: { guildId, userId }
+            });
+            
+            if (!userRaidHistory) {
+                userRaidHistory = await RaidHistory.create({
+                    guildId,
+                    userId,
+                    lastRaidDate: historyUpdate.lastRaidDate || null,
+                    lastRaidSuccess: historyUpdate.lastRaidSuccess || false,
+                    totalRaids: 0,
+                    successfulRaids: 0
+                });
+            }
+            
+            // Update raid statistics
+            const updateData = {
+                lastRaidDate: historyUpdate.lastRaidDate || userRaidHistory.lastRaidDate,
+                lastRaidSuccess: historyUpdate.lastRaidSuccess !== undefined ? 
+                    historyUpdate.lastRaidSuccess : userRaidHistory.lastRaidSuccess,
+                totalRaids: userRaidHistory.totalRaids + 1
+            };
+            
+            if (historyUpdate.lastRaidSuccess) {
+                updateData.successfulRaids = userRaidHistory.successfulRaids + 1;
+            }
+            
+            // Save the updated history
+            await userRaidHistory.update(updateData);
+            
+            return true;
+        } catch (error) {
+            console.error('Error in updateRaidHistory:', error);
+            return false;
+        }
+    },
+
+    // Function to migrate raid data from old format (in Streaks) to new format (in RaidHistory)
+    async migrateRaidData(guildId) {
+        try {
+            guildId = String(guildId);
+            console.log(`Starting raid data migration for guild ${guildId}...`);
+            
+            // Find all streaks with raid data
+            const streaksWithRaidData = await Streak.findAll({
+                where: {
+                    guildId,
+                    lastRaidDate: {
+                        [Op.not]: null
                     }
+                }
+            });
+            
+            console.log(`Found ${streaksWithRaidData.length} streaks with raid data to migrate`);
+            
+            // Migrate each streak's raid data to RaidHistory
+            let migratedCount = 0;
+            for (const streak of streaksWithRaidData) {
+                // Check if we already have a RaidHistory entry
+                let raidHistory = await RaidHistory.findOne({
+                    where: {
+                        guildId,
+                        userId: streak.userId
+                    }
+                });
+                
+                // If no history or the streak has more recent raid data, update it
+                const shouldUpdate = !raidHistory || 
+                    !raidHistory.lastRaidDate || 
+                    (streak.lastRaidDate && new Date(streak.lastRaidDate) > new Date(raidHistory.lastRaidDate));
+                
+                if (shouldUpdate) {
+                    if (!raidHistory) {
+                        // Create new history
+                        raidHistory = await RaidHistory.create({
+                            guildId,
+                            userId: streak.userId,
+                            lastRaidDate: streak.lastRaidDate,
+                            lastRaidSuccess: streak.lastRaidSuccess || false,
+                            totalRaids: 1,
+                            successfulRaids: streak.lastRaidSuccess ? 1 : 0
+                        });
+                    } else {
+                        // Update existing history
+                        await raidHistory.update({
+                            lastRaidDate: streak.lastRaidDate,
+                            lastRaidSuccess: streak.lastRaidSuccess || false,
+                            totalRaids: raidHistory.totalRaids + 1,
+                            successfulRaids: streak.lastRaidSuccess ? 
+                                raidHistory.successfulRaids + 1 : raidHistory.successfulRaids
+                        });
+                    }
+                    migratedCount++;
                 }
             }
             
-            if (!lastRaidDate) {
-                // No previous raid found
-                return { 
-                    canRaid: true, 
-                    remainingHours: 0, 
-                    remainingMinutes: 0,
-                    wasSuccessful: false
-                };
-            }
+            console.log(`Successfully migrated ${migratedCount} raid records for guild ${guildId}`);
+            return migratedCount;
             
-            // Determine applicable cooldown based on success/failure
-            const cooldownHours = wasSuccessful ? 
-                (raidConfig.successCooldownHours || 4) : 
-                (raidConfig.failureCooldownHours || 2);
-            
-            // Calculate time elapsed and remaining
-            const now = new Date();
-            const hoursSinceLastRaid = (now - lastRaidDate) / (1000 * 60 * 60);
-            const remainingHours = Math.max(0, cooldownHours - hoursSinceLastRaid);
-            
-            // Convert to hours and minutes
-            const wholeRemainingHours = Math.floor(remainingHours);
-            const remainingMinutes = Math.floor((remainingHours - wholeRemainingHours) * 60);
-            
-            return {
-                canRaid: hoursSinceLastRaid >= cooldownHours,
-                remainingHours: wholeRemainingHours,
-                remainingMinutes: remainingMinutes,
-                wasSuccessful: wasSuccessful
-            };
         } catch (error) {
-            console.error('Error checking raid cooldown:', error);
-            // If there was an error (like missing column), allow the raid
-            return { 
-                canRaid: true, 
-                remainingHours: 0, 
-                remainingMinutes: 0,
-                wasSuccessful: false,
-                error: error.message
-            };
+            console.error(`Error migrating raid data for guild ${guildId}:`, error);
+            return 0;
         }
     }
 };
