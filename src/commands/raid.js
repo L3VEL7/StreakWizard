@@ -59,8 +59,8 @@ module.exports = {
             const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
             const targetStreaks = await streakManager.getUserStreaks(interaction.guildId, target.id);
             
-            const attackerStreak = userStreaks.find(s => s.trigger === word);
-            const targetStreak = targetStreaks.find(s => s.trigger === word);
+            const attackerStreak = userStreaks.find(s => s.triggerWord === word || s.trigger === word);
+            const targetStreak = targetStreaks.find(s => s.triggerWord === word || s.trigger === word);
             
             const attackerCount = attackerStreak ? attackerStreak.count : 0;
             const defenderCount = targetStreak ? targetStreak.count : 0;
