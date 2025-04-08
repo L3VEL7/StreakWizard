@@ -884,19 +884,46 @@ module.exports = {
 
                 // Update the risk amount calculation with min/max limits
                 const calculatedRiskPercent = raidConfig.riskPercent || 15;
-                let riskAmount = Math.floor(attackerStreak.count * (calculatedRiskPercent / 100));
+                
+                // Calculate streak ratio to determine if this is an underdog raid
+                const streakRatio = attackerStreak.count / defenderStreak.count;
+                
+                // Dynamic risk adjustment for underdogs
+                let riskAdjustment = 1.0; // Default multiplier (no change)
+                let stealBonus = 0; // Default (no bonus)
+                
+                // If attacker has significantly fewer streaks than defender (underdog)
+                if (streakRatio < 0.75) {
+                    // Scale the risk down based on how much of an underdog they are
+                    riskAdjustment = Math.max(0.6, streakRatio); // Min 40% risk reduction (0.6 multiplier)
+                    
+                    // Bonus to steal amount for underdogs
+                    if (streakRatio < 0.5) {
+                        stealBonus = 10; // +10% bonus for significant underdogs
+                    } else {
+                        stealBonus = 5; // +5% bonus for moderate underdogs
+                    }
+                }
+                
+                // Apply risk adjustment
+                let riskAmount = Math.floor(attackerStreak.count * (calculatedRiskPercent / 100) * riskAdjustment);
+                
                 // Apply minimum and maximum limits
                 riskAmount = Math.max(raidConfig.minRiskAmount || 3, riskAmount);
                 riskAmount = Math.min(raidConfig.maxRiskAmount || 20, riskAmount);
 
                 // Update the steal amount calculation with min/max limits
                 const maxStealPercent = raidConfig.maxStealPercent || 20;
+                
                 // Calculate a random percentage between 30-100% of the maxStealPercent
+                // Add stealBonus for underdogs
                 const stealPercent = Math.min(
-                    maxStealPercent,
-                    Math.floor(Math.random() * maxStealPercent * 0.9) + Math.floor(maxStealPercent * 0.3)
+                    maxStealPercent + stealBonus,
+                    Math.floor(Math.random() * maxStealPercent * 0.9) + Math.floor(maxStealPercent * 0.3) + stealBonus
                 );
+                
                 let stealAmount = Math.floor(defenderStreak.count * (stealPercent / 100));
+                
                 // Apply minimum and maximum limits
                 stealAmount = Math.max(raidConfig.minStealAmount || 5, stealAmount);
                 stealAmount = Math.min(raidConfig.maxStealAmount || 30, stealAmount);
@@ -917,13 +944,19 @@ module.exports = {
                 // Calculate final success chance
                 const adjustedSuccessChance = baseSuccessChance + initiatorBonus + progressiveBonus;
                 
-                // Log the chance calculation
-                console.log('Raid success chance calculation:', {
+                // Log the chance calculation and dynamic adjustments
+                console.log('Raid dynamics calculation:', {
                     baseSuccessChance,
                     initiatorBonus,
                     progressiveBonus,
+                    streakRatio,
+                    riskAdjustment,
+                    stealBonus,
                     defenderStreakCount: defenderStreak.count,
+                    attackerStreakCount: attackerStreak.count,
                     adjustedSuccessChance,
+                    stealPercent,
+                    adjustedRiskPercent: calculatedRiskPercent * riskAdjustment,
                     timestamp: new Date().toISOString()
                 });
                 

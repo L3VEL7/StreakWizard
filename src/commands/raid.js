@@ -51,8 +51,8 @@ module.exports = {
 
             // Check if user has enough streaks to raid
             const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
-            const userStreak = userStreaks.find(s => s.trigger === word);
-            if (!userStreak || userStreak.count < 2) {
+            const attackerStreak = userStreaks.find(s => s.trigger === word);
+            if (!attackerStreak || attackerStreak.count < 2) {
                 await interaction.editReply({
                     content: '❌ You need at least 2 streaks to raid.',
                     ephemeral: false
@@ -78,10 +78,40 @@ module.exports = {
             else if (targetStreak.count >= 50) progressiveBonus = 9;
             else if (targetStreak.count >= 25) progressiveBonus = 6;
             else if (targetStreak.count >= 10) progressiveBonus = 3;
+            
+            // Calculate streak ratio for dynamic adjustments
+            let streakRatio = 1.0;
+            let riskAdjustment = 1.0;
+            let stealBonus = 0;
+            
+            if (attackerStreak && targetStreak) {
+                streakRatio = attackerStreak.count / targetStreak.count;
+                
+                // Calculate dynamic adjustments for underdogs
+                if (streakRatio < 0.75) {
+                    riskAdjustment = Math.max(0.6, streakRatio);
+                    
+                    if (streakRatio < 0.5) {
+                        stealBonus = 10; // +10% bonus for significant underdogs
+                    } else {
+                        stealBonus = 5; // +5% bonus for moderate underdogs
+                    }
+                }
+            }
+            
+            // Prepare underdog bonus messages
+            let underdogMessages = [];
+            if (stealBonus > 0) {
+                underdogMessages.push(`✅ Underdog bonus: +${stealBonus}% steal amount`);
+            }
+            if (riskAdjustment < 1.0) {
+                const riskReduction = Math.round((1 - riskAdjustment) * 100);
+                underdogMessages.push(`🛡️ Risk reduction: -${riskReduction}%`);
+            }
 
             // Inform about the bonus chances for initiating the raid
             await interaction.editReply({
-                content: `⚔️ **INITIATING RAID!** ⚔️\n${interaction.user} is raiding ${target}'s "${word}" streaks!\n\n💫 **Bonuses:**\n⭐ Raid initiator: +5% success chance\n🎯 Target streak (${targetStreak.count}): +${progressiveBonus}% success chance\n\nCalculating result...`,
+                content: `⚔️ **INITIATING RAID!** ⚔️\n${interaction.user} is raiding ${target}'s "${word}" streaks!\n\n💫 **Bonuses:**\n⭐ Raid initiator: +5% success chance\n🎯 Target streak (${targetStreak.count}): +${progressiveBonus}% success chance${underdogMessages.length > 0 ? '\n' + underdogMessages.join('\n') : ''}\n\nCalculating result...`,
                 ephemeral: false
             });
 

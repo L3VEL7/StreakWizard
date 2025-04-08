@@ -662,8 +662,8 @@ async function handleRaidConfig(interaction, originalInteraction) {
         .addFields(
             { name: 'Enable/Disable', value: `Current: ${config.enabled ? '✅ Enabled' : '❌ Disabled'}` },
             { name: 'Success Chance', value: `Base: ${config.successChance}% (+5% initiator bonus, +3-15% progressive bonus based on target's streak)` },
-            { name: 'Max Steal', value: `Current: ${config.maxStealPercent}% (Min: ${config.minStealAmount}, Max: ${config.maxStealAmount})` },
-            { name: 'Risk', value: `Current: ${config.riskPercent}% (Min: ${config.minRiskAmount}, Max: ${config.maxRiskAmount})` },
+            { name: 'Max Steal', value: `Current: ${config.maxStealPercent}% (Min: ${config.minStealAmount}, Max: ${config.maxStealAmount})\nUnderdogs get +5-10% bonus!` },
+            { name: 'Risk', value: `Current: ${config.riskPercent}% (Min: ${config.minRiskAmount}, Max: ${config.maxRiskAmount})\nUnderdogs get up to 40% risk reduction!` },
             { name: 'Cooldown', value: `Success: ${config.successCooldownHours}h | Failure: ${config.failureCooldownHours}h` }
         );
 
@@ -1203,7 +1203,7 @@ async function handleRaidSuccessChance(interaction, originalInteraction) {
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('⚔️ Raid Success Chance')
-        .setDescription(`Configure the base chance of success for raids.\n\n**Bonus System:**\n• All raiders get +5% bonus chance when initiating a raid\n• Progressive bonus based on target's streak size:\n  - Streaks 10-24: +3%\n  - Streaks 25-49: +6%\n  - Streaks 50-74: +9%\n  - Streaks 75-99: +12%\n  - Streaks 100+: +15%\n\nThis helps balance the game by giving underdogs a better chance to raid high-streak players.`)
+        .setDescription(`Configure the base chance of success for raids.\n\n**Bonus System:**\n• All raiders get +5% bonus chance when initiating a raid\n• Progressive bonus based on target's streak size:\n  - Streaks 10-24: +3%\n  - Streaks 25-49: +6%\n  - Streaks 50-74: +9%\n  - Streaks 75-99: +12%\n  - Streaks 100+: +15%\n\n**Underdog System:**\n• When a player raids someone with significantly more streaks:\n  - Up to +10% bonus steal amount\n  - Up to 40% risk reduction when failing\n  - Bonuses scale based on streak difference\n\nThis creates a balanced gameplay where underdogs have a fair chance against high-streak players while still rewarding streak building.`)
         .addFields(
             { name: 'Current Setting', value: `${currentChance}% base chance + bonuses` }
         );
