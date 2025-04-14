@@ -1842,5 +1842,58 @@ module.exports = {
             console.error('Error ensuring RaidHistory table exists:', error);
             return false;
         }
+    },
+
+    /**
+     * Admin function to reset a user's raid cooldown timer
+     * @param {string} guildId - The guild ID
+     * @param {string} userId - The user's ID to reset cooldown for
+     * @param {boolean} isAdmin - Must be true to confirm this is an admin operation
+     * @returns {Object} Result of the operation
+     */
+    async resetRaidCooldown(guildId, userId, isAdmin = false) {
+        try {
+            // Safety check to prevent accidental usage
+            if (!isAdmin) {
+                return {
+                    success: false,
+                    message: 'This function is restricted to admin use only. Set isAdmin to true to confirm.'
+                };
+            }
+
+            guildId = String(guildId);
+            userId = String(userId);
+            
+            // Find the user's raid history
+            const userRaidHistory = await RaidHistory.findOne({
+                where: { guildId, userId }
+            });
+            
+            if (!userRaidHistory) {
+                return {
+                    success: false,
+                    message: `No raid history found for user ID ${userId} in guild ${guildId}`
+                };
+            }
+            
+            // Reset the lastRaidDate to a date in the past (1 day ago to ensure any cooldown has expired)
+            const pastDate = new Date();
+            pastDate.setDate(pastDate.getDate() - 1);
+            
+            await userRaidHistory.update({
+                lastRaidDate: pastDate
+            });
+            
+            return {
+                success: true,
+                message: `Successfully reset raid cooldown for user ID ${userId}. They can now raid immediately.`
+            };
+        } catch (error) {
+            console.error('Error resetting raid cooldown:', error);
+            return {
+                success: false,
+                message: `Error resetting raid cooldown: ${error.message}`
+            };
+        }
     }
 };
