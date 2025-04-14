@@ -511,10 +511,35 @@ module.exports = {
             // Get success chance from config (default to 50% if not set)
             const successChance = config.successChance !== undefined ? config.successChance : 50;
             
-            // Determine if gamble is successful
-            const random = Math.random() * 100;
-            const isSuccess = random <= successChance;
-            
+            // Better logging of gambling parameters
+            console.log('Gambling parameters:', {
+                userId,
+                word,
+                currentStreak,
+                gambleAmount,
+                validPercentage,
+                choice,
+                successChance,
+                timestamp: new Date().toISOString()
+            });
+
+            // Determine if gamble is successful with better RNG
+            // Use a more detailed random number generation process
+            const randomValue = Math.random();
+            const scaledRandom = randomValue * 100; // Scale to percentage
+            const isSuccess = scaledRandom <= successChance;
+
+            // Log the random roll details
+            console.log('Gambling roll result:', {
+                userId,
+                word,
+                randomValue,
+                scaledRandom,
+                successThreshold: successChance,
+                isSuccess,
+                timestamp: new Date().toISOString()
+            });
+
             let newStreakCount;
             let resultMessage;
             
@@ -551,7 +576,9 @@ module.exports = {
                 newStreak: newStreakCount,
                 difference: newStreakCount - currentStreak,
                 gambleAmount: gambleAmount,
-                percentageUsed: validPercentage
+                percentageUsed: validPercentage,
+                roll: scaledRandom,
+                successChance: successChance
             };
         } catch (error) {
             console.error('Error in gambleStreak:', error);
@@ -1030,9 +1057,8 @@ module.exports = {
                 stealAmount = Math.max(raidConfig.minStealAmount || 5, stealAmount);
                 stealAmount = Math.min(raidConfig.maxStealAmount || 30, stealAmount);
 
-                // Determine raid success with bonus chances
-                const baseSuccessChance = raidConfig.successChance || 50;
-                const initiatorBonus = 5; // Additional 5% chance for the raid initiator
+                // Get raid success chance (default 50%)
+                const baseSuccessChance = config.successChance !== undefined ? config.successChance : 50;
                 
                 // Add progressive bonus based on defender's streak size
                 // This creates a balancing mechanism where higher streaks are slightly easier to raid
@@ -1044,12 +1070,11 @@ module.exports = {
                 else if (defenderStreak.count >= 10) progressiveBonus = 3; // +3% for streaks 10-24
                 
                 // Calculate final success chance with a cap of 95% to avoid guaranteed raids
-                const adjustedSuccessChance = Math.min(95, baseSuccessChance + initiatorBonus + progressiveBonus);
+                const adjustedSuccessChance = Math.min(95, baseSuccessChance + progressiveBonus);
                 
                 // Log the chance calculation and dynamic adjustments
                 console.log('Raid dynamics calculation:', {
                     baseSuccessChance,
-                    initiatorBonus,
                     progressiveBonus,
                     streakRatio,
                     riskAdjustment,
@@ -1057,17 +1082,15 @@ module.exports = {
                     defenderStreakCount: defenderStreak.count,
                     attackerStreakCount: attackerStreak.count,
                     adjustedSuccessChance,
-                    stealPercent,
-                    stealAmount,
                     riskAmount,
-                    adjustedRiskPercent: calculatedRiskPercent * riskAdjustment,
                     timestamp: new Date().toISOString()
                 });
                 
-                // Determine if raid succeeds
-                const success = Math.random() * 100 < adjustedSuccessChance;
+                // Determine raid success with adjusted chance
+                const random = Math.random() * 100;
+                const isSuccess = random <= adjustedSuccessChance;
 
-                if (success) {
+                if (isSuccess) {
                     // Successful raid
                     attackerStreak.count += stealAmount;
                     defenderStreak.count -= stealAmount;
@@ -1080,7 +1103,7 @@ module.exports = {
                 }
 
                 // After determining raid success or failure, set the appropriate cooldown
-                const cooldownHours = success ? 
+                const cooldownHours = isSuccess ? 
                     (raidConfig.successCooldownHours || 4) : 
                     (raidConfig.failureCooldownHours || 2);
 
@@ -1088,7 +1111,7 @@ module.exports = {
                 try {
                     // Store the raid time and outcome for cooldown calculation
                     attackerStreak.lastRaidDate = new Date();
-                    attackerStreak.lastRaidSuccess = success;
+                    attackerStreak.lastRaidSuccess = isSuccess;
                 } catch (dateError) {
                     console.warn('Could not update raid information, columns might not exist:', dateError.message);
                     // Continue even if this fails - it's not critical
@@ -1107,7 +1130,7 @@ module.exports = {
                     attackerId,
                     defenderId,
                     word: word.trim().toLowerCase(),
-                    success,
+                    success: isSuccess,
                     stealAmount,
                     riskAmount,
                     attackerNewCount: attackerStreak.count,
@@ -1117,7 +1140,7 @@ module.exports = {
                 });
 
                 return {
-                    success,
+                    success: isSuccess,
                     stealAmount,
                     riskAmount,
                     attackerNewCount: attackerStreak.count,
@@ -1502,16 +1525,65 @@ module.exports = {
                 riskAmount = Math.min(riskAmount, attackerStreak.count - 1);
                 
                 // Get raid success chance (default 50%)
-                const successChance = config.successChance !== undefined ? config.successChance : 50;
+                const baseSuccessChance = config.successChance !== undefined ? config.successChance : 50;
                 
-                // Determine raid success
+                // Calculate streak ratio to determine if this is an underdog raid
+                const streakRatio = attackerStreak.count / defenderStreak.count;
+                
+                // Dynamic risk adjustment for underdogs
+                let riskAdjustment = 1.0; // Default multiplier (no change)
+                let stealBonus = 0; // Default (no bonus)
+                
+                // If attacker has significantly fewer streaks than defender (underdog)
+                if (streakRatio < 0.75) {
+                    // Scale the risk down based on how much of an underdog they are
+                    riskAdjustment = Math.max(0.6, streakRatio); // Min 40% risk reduction (0.6 multiplier)
+                    
+                    // Bonus to steal amount for underdogs
+                    if (streakRatio < 0.5) {
+                        stealBonus = 10; // +10% bonus for significant underdogs
+                    } else {
+                        stealBonus = 5; // +5% bonus for moderate underdogs
+                    }
+                    
+                    // Apply risk adjustment to riskAmount
+                    riskAmount = Math.round(riskAmount * riskAdjustment);
+                    riskAmount = Math.min(maxRiskAmount, Math.max(minRiskAmount, riskAmount));
+                }
+                
+                // Add initiator bonus
+                const initiatorBonus = 5; // Additional 5% chance for the raid initiator
+                
+                // Add progressive bonus based on defender's streak size
+                // This creates a balancing mechanism where higher streaks are slightly easier to raid
+                let progressiveBonus = 0;
+                if (defenderStreak.count >= 100) progressiveBonus = 15; // +15% for streaks 100+
+                else if (defenderStreak.count >= 75) progressiveBonus = 12; // +12% for streaks 75-99
+                else if (defenderStreak.count >= 50) progressiveBonus = 9; // +9% for streaks 50-74
+                else if (defenderStreak.count >= 25) progressiveBonus = 6; // +6% for streaks 25-49
+                else if (defenderStreak.count >= 10) progressiveBonus = 3; // +3% for streaks 10-24
+                
+                // Calculate final success chance with a cap of 95% to avoid guaranteed raids
+                const adjustedSuccessChance = Math.min(95, baseSuccessChance + initiatorBonus + progressiveBonus);
+                
+                // Log the chance calculation and dynamic adjustments
+                console.log('Raid dynamics calculation:', {
+                    baseSuccessChance,
+                    initiatorBonus,
+                    progressiveBonus,
+                    streakRatio,
+                    riskAdjustment,
+                    stealBonus,
+                    defenderStreakCount: defenderStreak.count,
+                    attackerStreakCount: attackerStreak.count,
+                    adjustedSuccessChance,
+                    riskAmount,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Determine raid success with adjusted chance
                 const random = Math.random() * 100;
-                const isSuccess = random <= successChance;
-                
-                // Get cooldown hours from config
-                const cooldownHours = isSuccess ? 
-                    (config.successCooldownHours || 4) : // Default: 4 hours
-                    (config.failureCooldownHours || 2);  // Default: 2 hours
+                const isSuccess = random <= adjustedSuccessChance;
                 
                 let resultMessage = '';
                 let attackerNewStreak = attackerStreak.count;
@@ -1574,9 +1646,13 @@ module.exports = {
                     riskAmount,
                     entryThreshold,
                     minEntryStreak,
-                    successChance,
+                    successChance: adjustedSuccessChance,
                     successRoll: random,
-                    nextRaidTime: nextRaidDate
+                    nextRaidTime: nextRaidDate,
+                    baseSuccessChance,
+                    initiatorBonus,
+                    progressiveBonus,
+                    streakRatio
                 };
             } catch (error) {
                 await transaction.rollback();
