@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const streakManager = require('../storage/streakManager');
+const raidMessages = require('../data/raidMessages');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -50,7 +51,7 @@ module.exports = {
 
             // Let the user know we're checking raid conditions
             await interaction.editReply({
-                content: `⚔️ Preparing to raid ${target}'s "${word}" streaks...\nChecking conditions...`,
+                content: `⚔️ Preparing to raid ${target}'s "${word}" streaks...\nPeeking over the castle walls...`,
                 ephemeral: false
             });
 
@@ -58,8 +59,8 @@ module.exports = {
             const userStreaks = await streakManager.getUserStreaks(interaction.guildId, interaction.user.id);
             const targetStreaks = await streakManager.getUserStreaks(interaction.guildId, target.id);
             
-            const attackerStreak = userStreaks.find(s => s.trigger === word);
-            const targetStreak = targetStreaks.find(s => s.trigger === word);
+            const attackerStreak = userStreaks.find(s => s.triggerWord === word || s.trigger === word);
+            const targetStreak = targetStreaks.find(s => s.triggerWord === word || s.trigger === word);
             
             const attackerCount = attackerStreak ? attackerStreak.count : 0;
             const defenderCount = targetStreak ? targetStreak.count : 0;
@@ -81,13 +82,27 @@ module.exports = {
                 return;
             }
 
+            // Prepare data for narrative message
+            const messageData = {
+                attacker: interaction.user.username,
+                defender: target.username,
+                amount: result.raidSuccess ? result.stealAmount : result.riskAmount,
+                word: word
+            };
+
+            // Get a random narrative message and format it
+            const narrativeMessage = raidMessages.formatMessage(
+                raidMessages.getRandomMessage(result.raidSuccess),
+                messageData
+            );
+
             // Determine success or failure of the raid
             if (result.raidSuccess) {
                 // Successful raid
                 const embed = new EmbedBuilder()
                     .setTitle('⚔️ RAID SUCCESSFUL! ⚔️')
                     .setColor(0x00FF00)
-                    .setDescription(`${interaction.user} raided ${target} and stole **${result.stealAmount}** "${word}" streaks!`)
+                    .setDescription(narrativeMessage)
                     .addFields(
                         { 
                             name: `${interaction.user.username}'s Streak`, 
@@ -122,7 +137,7 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setTitle('💀 RAID FAILED! 💀')
                     .setColor(0xFF0000)
-                    .setDescription(`${interaction.user} tried to raid ${target} but failed and lost **${result.riskAmount}** "${word}" streaks to them!`)
+                    .setDescription(narrativeMessage)
                     .addFields(
                         { 
                             name: `${interaction.user.username}'s Streak`, 
