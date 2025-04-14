@@ -489,7 +489,7 @@ module.exports = {
                 where: {
                     guildId,
                     userId,
-                    word
+                    triggerWord: word.trim().toLowerCase()
                 }
             });
             
