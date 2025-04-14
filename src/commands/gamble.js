@@ -76,18 +76,38 @@ module.exports = {
                 interaction.user.id, 
                 word, 
                 exactPercentage,
-                'heads' // Default choice for simplicity
+                'double' // Changed from 'heads' to 'double' to match expected values in gambleStreak
             );
             
             // Display the gamble result publicly
-            if (result.won) {
+            if (!result.success) {
+                // There was an error with the gamble function
                 await interaction.editReply({
-                    content: `🎉 ${interaction.user} won ${result.gambleAmount} streaks on "${word}"!\nNew streak: ${result.newCount}!`,
+                    content: `❌ Error: ${result.message}`,
+                    ephemeral: false
+                });
+                return;
+            }
+
+            // Check if all required properties exist
+            if (result.newStreak === undefined) {
+                console.error('Missing newStreak property in gambleStreak result:', result);
+                await interaction.editReply({
+                    content: `🔄 Gamble processed, but there was an issue displaying the result. Please check your streaks with /streaks command.`,
+                    ephemeral: false
+                });
+                return;
+            }
+
+            // Simple text output for reliability
+            if (result.result) {
+                await interaction.editReply({
+                    content: `🎉 ${interaction.user} won ${result.gambleAmount} streaks on "${word}"!\nNew streak: ${result.newStreak}!`,
                     ephemeral: false
                 });
             } else {
                 await interaction.editReply({
-                    content: `😢 ${interaction.user} lost ${amount} streaks on "${word}".\nNew streak: ${result.newCount}.`,
+                    content: `😢 ${interaction.user} lost ${result.gambleAmount} streaks on "${word}".\nNew streak: ${result.newStreak}.`,
                     ephemeral: false
                 });
             }
