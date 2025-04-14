@@ -116,7 +116,7 @@ module.exports = {
                         },
                         { 
                             name: 'Raid Stats', 
-                            value: `✅ Success rate: ${result.successChance}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
+                            value: `✅ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}\n\n__Success Chance Breakdown:__\nBase: ${result.baseSuccessChance}%\nInitiator Bonus: +${result.initiatorBonus}%\nStreak Size Bonus: +${result.progressiveBonus}%\n${result.streakRatio < 0.75 ? `Underdog Bonus: Risk reduced by ${Math.round((1-result.streakRatio)*100)}%` : ""}`, 
                             inline: false 
                         },
                         { 
@@ -151,7 +151,7 @@ module.exports = {
                         },
                         { 
                             name: 'Raid Stats', 
-                            value: `❌ Success rate: ${result.successChance}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
+                            value: `❌ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}\n\n__Success Chance Breakdown:__\nBase: ${result.baseSuccessChance}%\nInitiator Bonus: +${result.initiatorBonus}%\nStreak Size Bonus: +${result.progressiveBonus}%\n${result.streakRatio < 0.75 ? `Underdog Bonus: Risk reduced by ${Math.round((1-result.streakRatio)*100)}%` : ""}`, 
                             inline: false 
                         },
                         { 
