@@ -1002,7 +1002,15 @@ module.exports = {
                 });
 
                 if (attackerStreak.count < requiredStreak) {
-                    throw new Error(`You need at least ${requiredStreak} streaks to raid. This is the higher of: (1) minimum ${minEntryStreak} streaks, or (2) ${entryThreshold}% of target's ${defenderStreakCount} streaks = ${percentThreshold} streaks.`);
+                    // Only rollback if the transaction is still active
+                    if (transaction && !transaction.finished) {
+                        await transaction.rollback();
+                    }
+                    // Improved error message that's clearer about the calculation
+                    return { 
+                        success: false, 
+                        message: `You need at least ${requiredStreak} streaks to raid. This is the higher of: (1) minimum ${minEntryStreak} streaks, or (2) ${entryThreshold}% of target's ${defenderStreakCount} streaks = ${percentThreshold} streaks.` 
+                    };
                 }
 
                 // Anti-exploit: Maximum streak cap for raids
@@ -1157,12 +1165,13 @@ module.exports = {
                     timestamp: new Date().toISOString()
                 });
 
-                // Rollback the transaction if it exists
-                if (transaction) {
+                // Rollback the transaction if it exists and is still active
+                if (transaction && !transaction.finished) {
                     try {
                         await transaction.rollback();
                     } catch (rollbackError) {
-                        console.error('Error rolling back transaction:', rollbackError);
+                        console.error('Error during transaction rollback:', rollbackError);
+                        // Continue with the original error
                     }
                 }
 
@@ -1488,7 +1497,10 @@ module.exports = {
                 });
 
                 if (attackerStreak.count < requiredStreak) {
-                    await transaction.rollback();
+                    // Only rollback if the transaction is still active
+                    if (transaction && !transaction.finished) {
+                        await transaction.rollback();
+                    }
                     // Improved error message that's clearer about the calculation
                     return { 
                         success: false, 
@@ -1655,7 +1667,15 @@ module.exports = {
                     streakRatio
                 };
             } catch (error) {
-                await transaction.rollback();
+                // Only try to rollback if the transaction exists and is still active
+                if (transaction && !transaction.finished) {
+                    try {
+                        await transaction.rollback();
+                    } catch (rollbackError) {
+                        console.error('Error during transaction rollback:', rollbackError);
+                        // Continue with the original error
+                    }
+                }
                 throw error;
             }
         } catch (error) {
