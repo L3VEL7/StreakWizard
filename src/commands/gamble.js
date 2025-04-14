@@ -76,21 +76,38 @@ module.exports = {
                 interaction.user.id, 
                 word, 
                 exactPercentage,
-                'heads' // Default choice for simplicity
+                'double' // Changed from 'heads' to 'double' to match expected values in gambleStreak
             );
             
             // Display the gamble result publicly
-            if (result.won) {
+            if (!result.success) {
+                // There was an error with the gamble function
                 await interaction.editReply({
-                    content: `🎉 ${interaction.user} won ${result.gambleAmount} streaks on "${word}"!\nNew streak: ${result.newCount}!`,
+                    content: `❌ Error: ${result.message}`,
                     ephemeral: false
                 });
-            } else {
-                await interaction.editReply({
-                    content: `😢 ${interaction.user} lost ${amount} streaks on "${word}".\nNew streak: ${result.newCount}.`,
-                    ephemeral: false
-                });
+                return;
             }
+
+            // Create a detailed embed for the gamble result
+            const embed = new EmbedBuilder()
+                .setTitle(result.result ? '🎉 Gambling Success!' : '😢 Gambling Failed')
+                .setColor(result.result ? '#00FF00' : '#FF0000')
+                .setDescription(`${interaction.user} ${result.result ? 'won' : 'lost'} streaks on "${word}".`)
+                .addFields(
+                    { name: 'Starting Streak', value: `${result.oldStreak}`, inline: true },
+                    { name: 'New Streak', value: `${result.newStreak}`, inline: true },
+                    { name: 'Change', value: `${result.result ? '+' : '-'}${Math.abs(result.difference)}`, inline: true },
+                    { name: 'Gamble Details', value: `${result.percentageUsed}% of streaks (${result.gambleAmount} streaks)` },
+                    { name: 'Result', value: `🎲 Roll: ${Math.floor(result.roll)}/100\n⚖️ Success Chance: ${result.successChance}%` }
+                )
+                .setTimestamp();
+
+            await interaction.editReply({
+                content: null,
+                embeds: [embed],
+                ephemeral: false
+            });
         } catch (error) {
             console.error('Error in gamble command:', error);
             await interaction.editReply({
