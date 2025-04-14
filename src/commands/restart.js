@@ -26,8 +26,11 @@ module.exports = {
             // Close database connection
             await sequelize.close();
 
-            // Close Discord client connection
-            process.exit(0); // This will trigger the PM2 restart
+            // Make sure to wait a moment for the reply to be sent before exiting
+            setTimeout(() => {
+                console.log('Bot restart initiated by admin command');
+                process.exit(0); // This will trigger the PM2 restart
+            }, 1000);
         } catch (error) {
             console.error('Error during restart:', error);
             await interaction.editReply({
