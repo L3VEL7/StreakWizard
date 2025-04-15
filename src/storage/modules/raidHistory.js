@@ -68,6 +68,14 @@ async function getRemainingRaidTime(guildId, userId) {
             };
         }
         
+        // If cooldowns are disabled, user can raid regardless of history
+        if (config.cooldownEnabled === false) {
+            return {
+                canRaid: true,
+                message: 'Raid cooldowns are disabled. You can raid anytime.'
+            };
+        }
+        
         // Get user's raid history
         const userRaidHistory = await RaidHistory.findOne({
             where: { guildId: String(guildId), userId: String(userId) }

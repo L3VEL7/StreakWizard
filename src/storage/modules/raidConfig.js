@@ -21,7 +21,8 @@ async function getRaidConfig(guildId) {
                 minRiskAmount: constants.DEFAULT_RAID_MIN_RISK,
                 maxRiskAmount: constants.DEFAULT_RAID_MAX_RISK,
                 successCooldownHours: constants.DEFAULT_SUCCESS_COOLDOWN_HOURS,
-                failureCooldownHours: constants.DEFAULT_FAILURE_COOLDOWN_HOURS
+                failureCooldownHours: constants.DEFAULT_FAILURE_COOLDOWN_HOURS,
+                cooldownEnabled: true
             };
         }
         
@@ -34,7 +35,8 @@ async function getRaidConfig(guildId) {
             minRiskAmount: config.raidMinRiskAmount || constants.DEFAULT_RAID_MIN_RISK,
             maxRiskAmount: config.raidMaxRiskAmount || constants.DEFAULT_RAID_MAX_RISK,
             successCooldownHours: config.raidSuccessCooldownHours || constants.DEFAULT_SUCCESS_COOLDOWN_HOURS,
-            failureCooldownHours: config.raidFailureCooldownHours || constants.DEFAULT_FAILURE_COOLDOWN_HOURS
+            failureCooldownHours: config.raidFailureCooldownHours || constants.DEFAULT_FAILURE_COOLDOWN_HOURS,
+            cooldownEnabled: config.raidCooldownEnabled !== undefined ? config.raidCooldownEnabled : true
         };
     } catch (error) {
         console.error(`Error getting raid config for guild ${guildId}:`, error);
@@ -62,7 +64,8 @@ async function updateRaidConfig(guildId, config) {
             raidMinRiskAmount: config.minRiskAmount,
             raidMaxRiskAmount: config.maxRiskAmount,
             raidSuccessCooldownHours: config.successCooldownHours,
-            raidFailureCooldownHours: config.failureCooldownHours
+            raidFailureCooldownHours: config.failureCooldownHours,
+            raidCooldownEnabled: config.cooldownEnabled !== undefined ? config.cooldownEnabled : undefined
         });
         
         return await getRaidConfig(guildId);
