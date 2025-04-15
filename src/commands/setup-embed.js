@@ -636,7 +636,8 @@ module.exports = {
                                 );
                                 
                             // Update the message with the new embed and components
-                            await i.editReply({
+                            // Use interaction instead of i.editReply to update the main message
+                            await interaction.editReply({
                                 embeds: [embed],
                                 components: [toggleRow, successRow, failureRow, backRow],
                                 ephemeral: true
@@ -1422,6 +1423,18 @@ async function handleRaidCooldown(interaction, originalInteraction) {
  */
 async function handleTriggerWords(interaction, originalInteraction) {
     try {
+        // Remove any existing listeners to prevent duplicates
+        const client = originalInteraction.client;
+        const existingModalListener = client.listeners('interactionCreate').find(
+            listener => listener.name === 'triggerWordModalListener'
+        );
+        const existingSelectListener = client.listeners('interactionCreate').find(
+            listener => listener.name === 'triggerWordSelectListener'
+        );
+        
+        if (existingModalListener) client.removeListener('interactionCreate', existingModalListener);
+        if (existingSelectListener) client.removeListener('interactionCreate', existingSelectListener);
+        
         // Fetch existing trigger words
         const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
         
@@ -1519,7 +1532,7 @@ async function handleTriggerWords(interaction, originalInteraction) {
         });
 
         // Handle modal submissions for adding trigger words
-        originalInteraction.client.on('interactionCreate', async interaction => {
+        const modalListener = async interaction => {
             if (!interaction.isModalSubmit() || interaction.customId !== 'add_trigger_word_modal') return;
             
             if (interaction.user.id !== originalInteraction.user.id) return;
@@ -1536,28 +1549,37 @@ async function handleTriggerWords(interaction, originalInteraction) {
                     return;
                 }
                 
-                if (triggerWords.includes(word)) {
+                // Add the word using the streakManager
+                const result = await streakManager.addTriggerWord(interaction.guildId, word);
+                
+                if (result.success) {
                     await interaction.reply({
-                        content: `"${word}" is already a trigger word.`,
+                        content: `Added "${word}" to trigger words.`,
                         ephemeral: true
                     });
-                    return;
+                } else {
+                    await interaction.reply({
+                        content: result.message || `Error adding "${word}".`,
+                        ephemeral: true
+                    });
                 }
                 
-                // Add the word
-                const updatedWords = [...triggerWords, word];
-                await streakManager.setTriggerWords(interaction.guildId, updatedWords);
+                // Update the original embed with new list of trigger words
+                const updatedWords = await streakManager.getTriggerWords(interaction.guildId);
+                const updatedEmbed = new EmbedBuilder()
+                    .setColor('#0099ff')
+                    .setTitle('🔤 Trigger Word Management')
+                    .setDescription('Configure words that trigger streak counting.')
+                    .addFields(
+                        { name: 'Current Trigger Words', value: updatedWords.length > 0 ? updatedWords.join(', ') : 'No trigger words set.' },
+                        { name: 'Instructions', value: 'Use the buttons below to add or remove trigger words.' }
+                    )
+                    .setFooter({ text: 'These are words that will trigger streak counting when users chat.' });
                 
-                await interaction.reply({
-                    content: `Added "${word}" to trigger words.`,
-                    ephemeral: true
+                await originalInteraction.editReply({
+                    embeds: [updatedEmbed],
+                    components: [row]
                 });
-                
-                // Update the original embed
-                await handleTriggerWords(
-                    await originalInteraction.fetchReply(),
-                    originalInteraction
-                );
             } catch (error) {
                 console.error('Error adding trigger word:', error);
                 await interaction.reply({
@@ -1565,30 +1587,50 @@ async function handleTriggerWords(interaction, originalInteraction) {
                     ephemeral: true
                 });
             }
-        });
-
+        };
+        
         // Handle select menu for removing trigger words
-        originalInteraction.client.on('interactionCreate', async interaction => {
+        const selectListener = async interaction => {
             if (!interaction.isStringSelectMenu() || interaction.customId !== 'remove_trigger_word_select') return;
             
             if (interaction.user.id !== originalInteraction.user.id) return;
             
             try {
                 const selectedWords = interaction.values;
-                const updatedWords = triggerWords.filter(word => !selectedWords.includes(word));
+                let successCount = 0;
+                let errorCount = 0;
                 
-                await streakManager.setTriggerWords(interaction.guildId, updatedWords);
+                // Remove each word one by one
+                for (const word of selectedWords) {
+                    const result = await streakManager.removeTriggerWord(interaction.guildId, word);
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                }
                 
                 await interaction.update({
-                    content: `Removed ${selectedWords.length} trigger word(s).`,
+                    content: `Removed ${successCount} trigger word(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}.`,
                     components: []
                 });
                 
-                // Update the original embed
-                await handleTriggerWords(
-                    await originalInteraction.fetchReply(),
-                    originalInteraction
-                );
+                // Update the original embed with new list of trigger words
+                const updatedWords = await streakManager.getTriggerWords(interaction.guildId);
+                const updatedEmbed = new EmbedBuilder()
+                    .setColor('#0099ff')
+                    .setTitle('🔤 Trigger Word Management')
+                    .setDescription('Configure words that trigger streak counting.')
+                    .addFields(
+                        { name: 'Current Trigger Words', value: updatedWords.length > 0 ? updatedWords.join(', ') : 'No trigger words set.' },
+                        { name: 'Instructions', value: 'Use the buttons below to add or remove trigger words.' }
+                    )
+                    .setFooter({ text: 'These are words that will trigger streak counting when users chat.' });
+                
+                await originalInteraction.editReply({
+                    embeds: [updatedEmbed],
+                    components: [row]
+                });
             } catch (error) {
                 console.error('Error removing trigger words:', error);
                 await interaction.reply({
@@ -1596,6 +1638,20 @@ async function handleTriggerWords(interaction, originalInteraction) {
                     ephemeral: true
                 });
             }
+        };
+        
+        // Add unique names to our listeners to be able to remove them later
+        modalListener.name = 'triggerWordModalListener';
+        selectListener.name = 'triggerWordSelectListener';
+        
+        // Add the listeners
+        client.on('interactionCreate', modalListener);
+        client.on('interactionCreate', selectListener);
+        
+        // Clean up when collector ends
+        collector.on('end', () => {
+            client.removeListener('interactionCreate', modalListener);
+            client.removeListener('interactionCreate', selectListener);
         });
     } catch (error) {
         console.error('Error handling trigger words:', error);
