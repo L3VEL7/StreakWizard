@@ -549,27 +549,27 @@ module.exports = {
                     // Add handler for cooldown toggle button
                     if (i.customId === 'raid_cooldown_toggle') {
                         try {
-                            const raidConfig = await streakManager.getRaidConfig(interaction.guildId);
+                            const raidConfig = await streakManager.getRaidConfig(i.guildId);
                             const newCooldownEnabled = !raidConfig.cooldownEnabled;
                             
                             // Update the config
-                            await streakManager.updateRaidConfig(interaction.guildId, {
+                            await streakManager.updateRaidConfig(i.guildId, {
                                 ...raidConfig,
                                 cooldownEnabled: newCooldownEnabled
                             });
                             
-                            // Show a confirmation message and updated settings
-                            await i.update({
+                            // Show a confirmation message
+                            await i.reply({
                                 content: `Raid cooldowns ${newCooldownEnabled ? 'enabled' : 'disabled'} successfully.`,
                                 ephemeral: true
                             });
                             
                             // Show the updated cooldown settings
-                            await handleRaidCooldownSettings(i, originalInteraction);
+                            await handleRaidCooldownSettings(i, interaction);
                             return;
                         } catch (error) {
                             console.error('Error toggling raid cooldowns:', error);
-                            await i.update({
+                            await i.reply({
                                 content: '❌ An error occurred while toggling raid cooldowns.',
                                 ephemeral: true
                             });
@@ -1338,332 +1338,186 @@ async function handleRaidCooldown(interaction, originalInteraction) {
  */
 async function handleTriggerWords(interaction, originalInteraction) {
     try {
-        // Get current trigger words
+        // Fetch existing trigger words
         const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
         
-        const embed = new EmbedBuilder()
+        // Create embed for trigger words
+        const triggerWordsEmbed = new EmbedBuilder()
             .setColor('#0099ff')
-            .setTitle('📝 Trigger Word Configuration')
-            .setDescription('Configure which words trigger streak updates when used in messages.')
+            .setTitle('🔤 Trigger Word Management')
+            .setDescription('Configure words that trigger streak counting.')
             .addFields(
-                { 
-                    name: 'Current Trigger Words', 
-                    value: triggerWords.length > 0 ? 
-                        triggerWords.join(', ') : 
-                        'No trigger words configured yet' 
-                },
-                {
-                    name: 'Instructions',
-                    value: 'Use the buttons below to add or remove trigger words, or view a list of all current words. ' +
-                           'Trigger words are not case-sensitive and must be single words (no spaces).'
-                }
-            );
-        
-        // Create action buttons
-        const actionRow = new ActionRowBuilder()
+                { name: 'Current Trigger Words', value: triggerWords.length > 0 ? triggerWords.join(', ') : 'No trigger words set.' },
+                { name: 'Instructions', value: 'Use the buttons below to add or remove trigger words.' }
+            )
+            .setFooter({ text: 'These are words that will trigger streak counting when users chat.' });
+
+        // Create buttons for trigger word management
+        const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('add_trigger_word')
                     .setLabel('Add Word')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('➕'),
+                    .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
                     .setCustomId('remove_trigger_word')
                     .setLabel('Remove Word')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🗑️'),
+                    .setStyle(ButtonStyle.Danger),
                 new ButtonBuilder()
-                    .setCustomId('list_trigger_words')
-                    .setLabel('View All Words')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📋')
-            );
-        
-        // Back button
-        const backRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('back_to_core_config')
-                    .setLabel('Back to Core Config')
+                    .setCustomId('back_to_main')
+                    .setLabel('Back to Main Menu')
                     .setStyle(ButtonStyle.Secondary)
             );
-        
+
         await interaction.update({
-            embeds: [embed],
-            components: [actionRow, backRow],
-            content: null,
-            ephemeral: true
+            embeds: [triggerWordsEmbed],
+            components: [row]
         });
-        
-        // Create a collector for button interactions
-        const message = await interaction.fetchReply();
-        const collector = message.createMessageComponentCollector({
-            filter: i => i.user.id === interaction.user.id,
-            time: 300000 // 5 minutes
-        });
-        
+
+        // Set up collector for button interactions
+        const filter = i => i.user.id === originalInteraction.user.id;
+        const collector = interaction.channel.createMessageComponentCollector({ filter, time: 300000 });
+
         collector.on('collect', async i => {
-            // Handle back button
-            if (i.customId === 'back_to_core_config') {
+            if (i.customId === 'back_to_main') {
                 collector.stop();
-                await handleCoreConfig(i, originalInteraction);
+                await showMainOptions(originalInteraction);
                 return;
             }
-            
-            // Handle add trigger word
+
             if (i.customId === 'add_trigger_word') {
-                // Create a modal for adding a trigger word
                 const modal = new ModalBuilder()
                     .setCustomId('add_trigger_word_modal')
                     .setTitle('Add Trigger Word');
-                
+
                 const wordInput = new TextInputBuilder()
                     .setCustomId('trigger_word_input')
-                    .setLabel('Enter the trigger word to add:')
-                    .setPlaceholder('e.g. daily')
-                    .setRequired(true)
+                    .setLabel('Enter a word that will trigger streak counting')
                     .setStyle(TextInputStyle.Short)
-                    .setMaxLength(20);
-                
-                const actionRow = new ActionRowBuilder().addComponents(wordInput);
-                modal.addComponents(actionRow);
-                
+                    .setMaxLength(30)
+                    .setRequired(true);
+
+                const firstActionRow = new ActionRowBuilder().addComponents(wordInput);
+                modal.addComponents(firstActionRow);
                 await i.showModal(modal);
-                
-                try {
-                    // Wait for modal submission
-                    const modalSubmit = await i.awaitModalSubmit({
-                        filter: i => i.customId === 'add_trigger_word_modal',
-                        time: 60000 // 1 minute to submit
-                    });
-                    
-                    const word = modalSubmit.fields.getTextInputValue('trigger_word_input').trim();
-                    
-                    if (word) {
-                        // Add the trigger word
-                        const result = await streakManager.addTriggerWord(interaction.guildId, word);
-                        
-                        if (result.success) {
-                            // Re-fetch trigger words to update the list
-                            const updatedWords = await streakManager.getTriggerWords(interaction.guildId);
-                            
-                            // Update the embed with new words
-                            embed.setFields(
-                                { 
-                                    name: 'Current Trigger Words', 
-                                    value: updatedWords.length > 0 ? 
-                                        updatedWords.join(', ') : 
-                                        'No trigger words configured yet' 
-                                },
-                                embed.data.fields[1] // Keep the instructions field
-                            );
-                            
-                            await modalSubmit.update({
-                                embeds: [embed],
-                                components: [actionRow, backRow],
-                                content: `✅ Added trigger word "${word}"`,
-                                ephemeral: true
-                            });
-                        } else {
-                            await modalSubmit.update({
-                                embeds: [embed],
-                                components: [actionRow, backRow],
-                                content: `❌ ${result.message}`,
-                                ephemeral: true
-                            });
-                        }
-                    } else {
-                        await modalSubmit.update({
-                            embeds: [embed],
-                            components: [actionRow, backRow],
-                            content: '❌ Please enter a valid trigger word',
-                            ephemeral: true
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error in modal submission:', error);
-                    // Modal timed out or errored
-                    try {
-                        await i.followUp({
-                            content: '❌ Trigger word addition cancelled or timed out',
-                            ephemeral: true
-                        });
-                    } catch (e) {
-                        // Ignore errors with followUp
-                    }
-                }
-                
-                return;
             }
-            
-            // Handle remove trigger word
+
             if (i.customId === 'remove_trigger_word') {
-                const currentWords = await streakManager.getTriggerWords(interaction.guildId);
-                
-                if (currentWords.length === 0) {
-                    await i.update({
-                        embeds: [embed],
-                        components: [actionRow, backRow],
-                        content: '❌ No trigger words to remove',
+                // Only show remove options if there are trigger words
+                if (triggerWords.length === 0) {
+                    await i.reply({
+                        content: 'There are no trigger words to remove.',
                         ephemeral: true
                     });
                     return;
                 }
-                
-                // Create a modal for removing a trigger word
-                const modal = new ModalBuilder()
-                    .setCustomId('remove_trigger_word_modal')
-                    .setTitle('Remove Trigger Word');
-                
-                const wordInput = new TextInputBuilder()
-                    .setCustomId('trigger_word_input')
-                    .setLabel('Enter the trigger word to remove:')
-                    .setPlaceholder('e.g. daily')
-                    .setRequired(true)
-                    .setStyle(TextInputStyle.Short)
-                    .setMaxLength(20);
-                
-                const modalRow = new ActionRowBuilder().addComponents(wordInput);
-                modal.addComponents(modalRow);
-                
-                await i.showModal(modal);
-                
-                try {
-                    // Wait for modal submission
-                    const modalSubmit = await i.awaitModalSubmit({
-                        filter: i => i.customId === 'remove_trigger_word_modal',
-                        time: 60000 // 1 minute to submit
-                    });
-                    
-                    const word = modalSubmit.fields.getTextInputValue('trigger_word_input').trim();
-                    
-                    if (word) {
-                        // Remove the trigger word
-                        const result = await streakManager.removeTriggerWord(interaction.guildId, word);
-                        
-                        if (result.success) {
-                            // Re-fetch trigger words to update the list
-                            const updatedWords = await streakManager.getTriggerWords(interaction.guildId);
-                            
-                            // Update the embed with new words
-                            embed.setFields(
-                                { 
-                                    name: 'Current Trigger Words', 
-                                    value: updatedWords.length > 0 ? 
-                                        updatedWords.join(', ') : 
-                                        'No trigger words configured yet' 
-                                },
-                                embed.data.fields[1] // Keep the instructions field
-                            );
-                            
-                            await modalSubmit.update({
-                                embeds: [embed],
-                                components: [actionRow, backRow],
-                                content: `✅ Removed trigger word "${word}"`,
-                                ephemeral: true
-                            });
-                        } else {
-                            await modalSubmit.update({
-                                embeds: [embed],
-                                components: [actionRow, backRow],
-                                content: `❌ ${result.message}`,
-                                ephemeral: true
-                            });
-                        }
-                    } else {
-                        await modalSubmit.update({
-                            embeds: [embed],
-                            components: [actionRow, backRow],
-                            content: '❌ Please enter a valid trigger word',
-                            ephemeral: true
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error in modal submission:', error);
-                    // Modal timed out or errored
-                    try {
-                        await i.followUp({
-                            content: '❌ Trigger word removal cancelled or timed out',
-                            ephemeral: true
-                        });
-                    } catch (e) {
-                        // Ignore errors with followUp
-                    }
-                }
-                
-                return;
-            }
-            
-            // Handle list trigger words
-            if (i.customId === 'list_trigger_words') {
-                const currentWords = await streakManager.getTriggerWords(interaction.guildId);
-                
-                if (currentWords.length === 0) {
-                    await i.update({
-                        embeds: [embed],
-                        components: [actionRow, backRow],
-                        content: '❌ No trigger words configured yet',
-                        ephemeral: true
-                    });
-                    return;
-                }
-                
-                // Create a paginated list if there are many words
-                let wordList = '';
-                currentWords.forEach((word, index) => {
-                    wordList += `${index + 1}. \`${word}\`\n`;
+
+                // Create select menu with trigger words
+                const selectRow = new ActionRowBuilder()
+                    .addComponents(
+                        new StringSelectMenuBuilder()
+                            .setCustomId('remove_trigger_word_select')
+                            .setPlaceholder('Select words to remove')
+                            .setMinValues(1)
+                            .setMaxValues(Math.min(triggerWords.length, 25))
+                            .addOptions(triggerWords.map(word => ({
+                                label: word,
+                                value: word
+                            })))
+                    );
+
+                await i.reply({
+                    content: 'Select the trigger words you want to remove:',
+                    components: [selectRow],
+                    ephemeral: true
                 });
+            }
+        });
+
+        // Handle modal submissions for adding trigger words
+        originalInteraction.client.on('interactionCreate', async interaction => {
+            if (!interaction.isModalSubmit() || interaction.customId !== 'add_trigger_word_modal') return;
+            
+            if (interaction.user.id !== originalInteraction.user.id) return;
+            
+            try {
+                const word = interaction.fields.getTextInputValue('trigger_word_input').toLowerCase().trim();
                 
-                const listEmbed = new EmbedBuilder()
-                    .setColor('#0099ff')
-                    .setTitle('📋 Trigger Words List')
-                    .setDescription(wordList);
+                // Validate the word
+                if (word.length < 2) {
+                    await interaction.reply({
+                        content: 'Trigger words must be at least 2 characters long.',
+                        ephemeral: true
+                    });
+                    return;
+                }
                 
-                await i.update({
-                    embeds: [listEmbed],
-                    components: [actionRow, backRow],
-                    content: `Total trigger words: ${currentWords.length}`,
+                if (triggerWords.includes(word)) {
+                    await interaction.reply({
+                        content: `"${word}" is already a trigger word.`,
+                        ephemeral: true
+                    });
+                    return;
+                }
+                
+                // Add the word
+                const updatedWords = [...triggerWords, word];
+                await streakManager.setTriggerWords(interaction.guildId, updatedWords);
+                
+                await interaction.reply({
+                    content: `Added "${word}" to trigger words.`,
                     ephemeral: true
                 });
                 
-                // Set a timeout to go back to the main trigger words page
-                setTimeout(async () => {
-                    try {
-                        await i.editReply({
-                            embeds: [embed],
-                            components: [actionRow, backRow],
-                            content: null,
-                            ephemeral: true
-                        });
-                    } catch (e) {
-                        // Ignore errors with editReply
-                    }
-                }, 5000); // 5 seconds
-                
-                return;
+                // Update the original embed
+                await handleTriggerWords(
+                    await originalInteraction.fetchReply(),
+                    originalInteraction
+                );
+            } catch (error) {
+                console.error('Error adding trigger word:', error);
+                await interaction.reply({
+                    content: 'An error occurred while adding the trigger word.',
+                    ephemeral: true
+                });
             }
         });
-        
-        // Handle collector end (timeout)
-        collector.on('end', async (collected, reason) => {
-            if (reason === 'time') {
-                try {
-                    await interaction.editReply({
-                        content: '⏰ Trigger word configuration panel timed out.',
-                        components: [],
-                        ephemeral: true
-                    });
-                } catch (e) {
-                    // Ignore errors with editReply
-                }
+
+        // Handle select menu for removing trigger words
+        originalInteraction.client.on('interactionCreate', async interaction => {
+            if (!interaction.isStringSelectMenu() || interaction.customId !== 'remove_trigger_word_select') return;
+            
+            if (interaction.user.id !== originalInteraction.user.id) return;
+            
+            try {
+                const selectedWords = interaction.values;
+                const updatedWords = triggerWords.filter(word => !selectedWords.includes(word));
+                
+                await streakManager.setTriggerWords(interaction.guildId, updatedWords);
+                
+                await interaction.update({
+                    content: `Removed ${selectedWords.length} trigger word(s).`,
+                    components: []
+                });
+                
+                // Update the original embed
+                await handleTriggerWords(
+                    await originalInteraction.fetchReply(),
+                    originalInteraction
+                );
+            } catch (error) {
+                console.error('Error removing trigger words:', error);
+                await interaction.reply({
+                    content: 'An error occurred while removing trigger words.',
+                    ephemeral: true
+                });
             }
         });
     } catch (error) {
         console.error('Error handling trigger words:', error);
         await interaction.update({
-            content: '❌ An error occurred while configuring trigger words.',
-            components: [],
-            ephemeral: true
+            content: '❌ An error occurred while loading trigger word settings.',
+            components: []
         });
     }
 }
