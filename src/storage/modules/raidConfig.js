@@ -13,6 +13,7 @@ async function getRaidConfig(guildId) {
         
         if (!config) {
             // Return default config
+            console.log(`No config found for guild ${guildId}, using defaults`);
             return {
                 enabled: false,
                 successChance: constants.DEFAULT_RAID_SUCCESS_CHANCE,
@@ -26,6 +27,12 @@ async function getRaidConfig(guildId) {
             };
         }
         
+        // Debug logging
+        console.log(`Raid config for guild ${guildId}:`, {
+            raidEnabled: config.raidEnabled,
+            raidCooldownEnabled: config.raidCooldownEnabled
+        });
+        
         // Return config with defaults for missing values
         return {
             enabled: config.raidEnabled || false,
@@ -36,7 +43,7 @@ async function getRaidConfig(guildId) {
             maxRiskAmount: config.raidMaxRiskAmount || constants.DEFAULT_RAID_MAX_RISK,
             successCooldownHours: config.raidSuccessCooldownHours || constants.DEFAULT_SUCCESS_COOLDOWN_HOURS,
             failureCooldownHours: config.raidFailureCooldownHours || constants.DEFAULT_FAILURE_COOLDOWN_HOURS,
-            cooldownEnabled: config.raidCooldownEnabled !== undefined ? config.raidCooldownEnabled : true
+            cooldownEnabled: config.raidCooldownEnabled === false ? false : true
         };
     } catch (error) {
         console.error(`Error getting raid config for guild ${guildId}:`, error);
@@ -54,10 +61,13 @@ async function updateRaidConfig(guildId, config) {
             throw new Error('Success chance must be between 0 and 100');
         }
         
+        // Debug logging
+        console.log(`Updating raid config for guild ${guildId}:`, config);
+        
         // Apply the updates to the database
         await GuildConfig.upsert({
             guildId,
-            raidEnabled: config.enabled !== undefined ? config.enabled : undefined,
+            raidEnabled: typeof config.enabled === 'boolean' ? config.enabled : undefined,
             raidSuccessChance: config.successChance,
             raidMinStealAmount: config.minStealAmount,
             raidMaxStealAmount: config.maxStealAmount,
@@ -65,10 +75,13 @@ async function updateRaidConfig(guildId, config) {
             raidMaxRiskAmount: config.maxRiskAmount,
             raidSuccessCooldownHours: config.successCooldownHours,
             raidFailureCooldownHours: config.failureCooldownHours,
-            raidCooldownEnabled: config.cooldownEnabled !== undefined ? config.cooldownEnabled : undefined
+            raidCooldownEnabled: typeof config.cooldownEnabled === 'boolean' ? config.cooldownEnabled : undefined
         });
         
-        return await getRaidConfig(guildId);
+        // Get and return the updated config
+        const updatedConfig = await getRaidConfig(guildId);
+        console.log(`Updated raid config for guild ${guildId}:`, updatedConfig);
+        return updatedConfig;
     } catch (error) {
         console.error(`Error updating raid config for guild ${guildId}:`, error);
         throw error;
