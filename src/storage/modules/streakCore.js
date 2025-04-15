@@ -214,6 +214,58 @@ async function setStreakStreakEnabled(guildId, enabled) {
     }
 }
 
+/**
+ * Calculate the remaining time before a streak can be incremented again
+ */
+async function getRemainingTime(guildId, userId, triggerWord) {
+    try {
+        const streak = await Streak.findOne({
+            where: {
+                guildId,
+                userId,
+                triggerWord
+            }
+        });
+        
+        if (!streak || !streak.lastUpdated) {
+            return null;
+        }
+        
+        // Get streak time limit from guild config
+        const limitMinutes = await getStreakLimit(guildId);
+        
+        // If there's no limit, return null (no waiting time)
+        if (!limitMinutes) {
+            return null;
+        }
+        
+        // Calculate time passed since last update
+        const now = new Date();
+        const lastUpdated = new Date(streak.lastUpdated);
+        const diffMilliseconds = now - lastUpdated;
+        const diffMinutes = Math.floor(diffMilliseconds / (1000 * 60));
+        
+        // If enough time has passed, return null (can update)
+        if (diffMinutes >= limitMinutes) {
+            return null;
+        }
+        
+        // Calculate remaining time
+        const remainingMinutes = limitMinutes - diffMinutes;
+        const hours = Math.floor(remainingMinutes / 60);
+        const minutes = remainingMinutes % 60;
+        
+        return {
+            hours,
+            minutes,
+            totalMinutes: remainingMinutes
+        };
+    } catch (error) {
+        console.error('Error calculating remaining time:', error);
+        return null;
+    }
+}
+
 module.exports = {
     getStreaks,
     getUserStreaks,
@@ -223,5 +275,6 @@ module.exports = {
     setStreakLimit,
     getMilestone,
     isStreakStreakEnabled,
-    setStreakStreakEnabled
+    setStreakStreakEnabled,
+    getRemainingTime
 }; 
