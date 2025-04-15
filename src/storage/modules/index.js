@@ -34,6 +34,8 @@ module.exports = {
     getStreakLimit: streakCore.getStreakLimit,
     setStreakLimit: streakCore.setStreakLimit,
     getMilestone: streakCore.getMilestone,
+    isStreakStreakEnabled: streakCore.isStreakStreakEnabled,
+    setStreakStreakEnabled: streakCore.setStreakStreakEnabled,
     
     // Trigger word functions
     setTriggerWords: triggerWords.setTriggerWords,

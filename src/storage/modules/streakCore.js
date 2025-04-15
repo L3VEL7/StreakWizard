@@ -185,6 +185,35 @@ function getMilestone(count) {
     return null;
 }
 
+/**
+ * Check if streak streak feature is enabled for a guild
+ */
+async function isStreakStreakEnabled(guildId) {
+    try {
+        const config = await GuildConfig.findByPk(guildId);
+        return config ? !!config.streakStreakEnabled : false;
+    } catch (error) {
+        console.error('Error checking if streak streak is enabled:', error);
+        return false; // Default to disabled
+    }
+}
+
+/**
+ * Set whether streak streak is enabled for a guild
+ */
+async function setStreakStreakEnabled(guildId, enabled) {
+    try {
+        await GuildConfig.upsert({
+            guildId,
+            streakStreakEnabled: !!enabled
+        });
+        return true;
+    } catch (error) {
+        console.error('Error setting streak streak enabled:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     getStreaks,
     getUserStreaks,
@@ -192,5 +221,7 @@ module.exports = {
     incrementStreak,
     getStreakLimit,
     setStreakLimit,
-    getMilestone
+    getMilestone,
+    isStreakStreakEnabled,
+    setStreakStreakEnabled
 }; 
