@@ -257,7 +257,10 @@ client.on('messageCreate', async message => {
 // Helper function to handle streak updates and reactions
 async function handleStreakUpdate(message, result, trigger) {
     try {
-        const { count, streakStreak, milestone, streakStreakMilestone, unlockedAchievements = [] } = result;
+        // Correctly extract values from the nested structure
+        const { streak, milestone, streakStreakMilestone, unlockedAchievements = [] } = result;
+        const count = streak.count;
+        const streakStreak = streak.streakStreak;
 
                 // Convert streak number to emoji
                 let streakEmoji;
