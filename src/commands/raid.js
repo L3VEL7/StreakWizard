@@ -150,9 +150,14 @@ module.exports = {
                             value: `${result.defenderOldStreak} → **${result.defenderNewStreak}** (-${result.stealAmount})`, 
                             inline: true 
                         },
+                        {
+                            name: 'Raid Difficulty',
+                            value: getDifficultyDescription(result.difficultyAdjustment),
+                            inline: false
+                        },
                         { 
                             name: 'Raid Stats', 
-                            value: `✅ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
+                            value: `✅ Success chance: ${result.successChance.toFixed(1)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}\n${result.stealBonus > 0 ? `💰 Underdog bonus: +${result.stealBonus}% max steal` : ''}`, 
                             inline: false 
                         }
                     )
@@ -195,9 +200,14 @@ module.exports = {
                             value: `${result.defenderOldStreak} → **${result.defenderNewStreak}** (+${result.riskAmount})`, 
                             inline: true 
                         },
+                        {
+                            name: 'Raid Difficulty',
+                            value: getDifficultyDescription(result.difficultyAdjustment),
+                            inline: false
+                        },
                         { 
                             name: 'Raid Stats', 
-                            value: `❌ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
+                            value: `❌ Success chance: ${result.successChance.toFixed(1)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}\n${result.riskReduction > 0 ? `🛡️ Underdog protection: ${Math.round(result.riskReduction * 100)}% risk reduction` : ''}`, 
                             inline: false 
                         }
                     )
@@ -234,4 +244,38 @@ module.exports = {
             });
         }
     },
-}; 
+};
+
+/**
+ * Get a descriptive text for the raid difficulty based on the adjustment value
+ * @param {number} adjustment - The difficulty adjustment value
+ * @returns {string} Description of the difficulty
+ */
+function getDifficultyDescription(adjustment) {
+    let emoji, description;
+    
+    if (adjustment <= -15) {
+        emoji = '⚡'; // lightning
+        description = 'Very Hard - The odds are heavily against you, but the rewards are greater!';
+    } else if (adjustment <= -10) {
+        emoji = '🔥'; // fire
+        description = 'Hard - This is a challenging raid with higher potential rewards.';
+    } else if (adjustment <= -5) {
+        emoji = '⚠️'; // warning
+        description = 'Challenging - The target has a significant advantage, but you also get bonus rewards.';
+    } else if (adjustment >= 15) {
+        emoji = '🍰'; // cake
+        description = 'Very Easy - You have a huge advantage, but the rewards are reduced.';
+    } else if (adjustment >= 10) {
+        emoji = '😊'; // smile
+        description = 'Easy - You have a clear advantage over your target.';
+    } else if (adjustment >= 5) {
+        emoji = '👍'; // thumbs up
+        description = 'Somewhat Easy - You have a small advantage in this raid.';
+    } else {
+        emoji = '⚖️'; // scales
+        description = 'Balanced - This raid has fairly even odds for both sides.';
+    }
+    
+    return `${emoji} **${description.split(' - ')[0]}**\n${description.split(' - ')[1]}`;
+} 

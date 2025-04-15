@@ -108,32 +108,92 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
         
         // Calculate raid success chance based on various factors
         const baseSuccessChance = raidConfig.successChance || 50;
-        const initiatorBonus = 10; // Bonus for initiating the raid
+        const initiatorBonus = 5; // Base bonus for initiating the raid
         
-        // Progressive bonus based on streak size
-        const attackerSize = attackerStreak.count;
-        const progressiveBonus = Math.min(15, Math.floor(attackerSize / 10));
+        // Calculate streak size ratio for difficulty adjustment
+        const streakRatio = attackerStreak.count / Math.max(1, defenderStreakCount);
         
-        // Success chance adjustments based on streak size ratio
-        const streakRatio = defenderStreakCount > 0 ? (attackerSize / defenderStreakCount) : 1;
+        // Calculate underdog/overdog adjustments for more diverse success chances
+        let difficultyAdjustment = 0;
+        let stealBonus = 0;
+        let riskReduction = 0;
+        
+        if (streakRatio < 0.5) {
+            // Significant underdog (attacker streak less than half of defender)
+            difficultyAdjustment = -15; // Much harder
+            stealBonus = 25; // Bigger reward if successful
+            riskReduction = 0.6; // 60% risk reduction on failure
+        } else if (streakRatio < 0.75) {
+            // Moderate underdog
+            difficultyAdjustment = -10;
+            stealBonus = 15;
+            riskReduction = 0.4; // 40% risk reduction
+        } else if (streakRatio < 1) {
+            // Slight underdog
+            difficultyAdjustment = -5;
+            stealBonus = 10;
+            riskReduction = 0.2; // 20% risk reduction
+        } else if (streakRatio > 2) {
+            // Significant overdog (attacker has more than double)
+            difficultyAdjustment = 15; // Much easier
+            stealBonus = -5; // Smaller reward
+            riskReduction = 0; // No risk reduction
+        } else if (streakRatio > 1.5) {
+            // Moderate overdog
+            difficultyAdjustment = 10;
+            stealBonus = -2;
+            riskReduction = 0;
+        } else if (streakRatio > 1) {
+            // Slight overdog
+            difficultyAdjustment = 5;
+            stealBonus = 0;
+            riskReduction = 0;
+        }
+        
+        // Progressive bonus based on defender's streak size
+        // This makes high-value targets harder to raid but more rewarding
+        let targetValueBonus = 0;
+        if (defenderStreakCount >= 100) {
+            targetValueBonus = 15;
+        } else if (defenderStreakCount >= 75) {
+            targetValueBonus = 12;
+        } else if (defenderStreakCount >= 50) {
+            targetValueBonus = 9;
+        } else if (defenderStreakCount >= 25) {
+            targetValueBonus = 6;
+        } else if (defenderStreakCount >= 10) {
+            targetValueBonus = 3;
+        }
         
         // Calculate final success chance
-        let successChance = baseSuccessChance + initiatorBonus + progressiveBonus;
+        let successChance = baseSuccessChance + initiatorBonus + difficultyAdjustment + targetValueBonus;
+        
+        // Ensure success chance is within reasonable bounds (10% - 90%)
+        successChance = Math.max(10, Math.min(90, successChance));
         
         // Roll for success
         const successRoll = Math.random() * 100;
         const isSuccess = successRoll <= successChance;
         
         // Calculate amounts based on raid config
+        const minStealAmount = raidConfig.minStealAmount || constants.DEFAULT_RAID_MIN_STEAL;
+        const maxStealAmount = raidConfig.maxStealAmount || constants.DEFAULT_RAID_MAX_STEAL;
+        
+        // Apply steal bonus for underdogs
+        const adjustedMaxSteal = maxStealAmount + stealBonus;
+        
         const stealPercent = isSuccess ? 
-            Math.random() * (raidConfig.maxStealAmount - raidConfig.minStealAmount) + raidConfig.minStealAmount : 0;
+            Math.random() * (adjustedMaxSteal - minStealAmount) + minStealAmount : 0;
+        
+        const minRiskAmount = raidConfig.minRiskAmount || constants.DEFAULT_RAID_MIN_RISK;
+        const maxRiskAmount = raidConfig.maxRiskAmount || constants.DEFAULT_RAID_MAX_RISK;
         
         let riskPercent = !isSuccess ? 
-            Math.random() * (raidConfig.maxRiskAmount - raidConfig.minRiskAmount) + raidConfig.minRiskAmount : 0;
+            Math.random() * (maxRiskAmount - minRiskAmount) + minRiskAmount : 0;
             
-        // Apply underdog bonus: reduce risk for significantly smaller streaks
-        if (streakRatio < 0.75) {
-            riskPercent *= streakRatio; // Reduce risk based on ratio
+        // Apply risk reduction for underdogs
+        if (riskReduction > 0) {
+            riskPercent *= (1 - riskReduction);
         }
         
         // Calculate actual streak amounts to steal/risk (minimum 1)
@@ -203,11 +263,42 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
         // Commit the transaction
         await transaction.commit();
         
+        // Create a more informative result message
+        let detailedMessage = '';
+        
+        if (isSuccess) {
+            detailedMessage = `**Raid successful!** You stole ${stealAmount} streaks from <@${defenderId}>.\n`;
+            detailedMessage += `Your streak increased from ${attackerOldStreak} to ${attackerNewStreak}.\n`;
+        } else {
+            detailedMessage = `**Raid failed!** You lost ${riskAmount} streaks to <@${defenderId}>.\n`;
+            detailedMessage += `Your streak decreased from ${attackerOldStreak} to ${Math.max(1, attackerNewStreak)}.\n`;
+        }
+        
+        // Add difficulty description
+        let difficultyDesc = '';
+        if (difficultyAdjustment <= -15) difficultyDesc = 'Very Hard';
+        else if (difficultyAdjustment <= -10) difficultyDesc = 'Hard';
+        else if (difficultyAdjustment <= -5) difficultyDesc = 'Challenging';
+        else if (difficultyAdjustment >= 15) difficultyDesc = 'Very Easy';
+        else if (difficultyAdjustment >= 10) difficultyDesc = 'Easy';
+        else if (difficultyAdjustment >= 5) difficultyDesc = 'Somewhat Easy';
+        else difficultyDesc = 'Balanced';
+        
+        // Add raid stats
+        detailedMessage += `• **Difficulty:** ${difficultyDesc}\n`;
+        detailedMessage += `• **Success Chance:** ${successChance.toFixed(1)}%\n`;
+        
+        // Add cooldown info if applicable
+        if (nextRaidTimeFormatted) {
+            detailedMessage += `• **Next Raid Available:** ${nextRaidTimeFormatted}`;
+        }
+        
         // Return comprehensive raid results
         return {
             success: true,
             raidSuccess: isSuccess,
             message: resultMessage,
+            detailedMessage: detailedMessage,
             attackerOldStreak,
             attackerNewStreak,
             defenderOldStreak,
@@ -217,6 +308,10 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
             successChance,
             successRoll,
             baseSuccessChance,
+            difficultyAdjustment,
+            stealBonus,
+            riskReduction,
+            targetValueBonus,
             cooldownEnabled: raidConfig.cooldownEnabled,
             nextRaidTime: nextRaidTimeFormatted || 'No cooldown'
         };
