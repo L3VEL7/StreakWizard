@@ -130,6 +130,11 @@ const GuildConfig = sequelize.define('GuildConfig', {
         type: DataTypes.INTEGER,
         defaultValue: 24,
         allowNull: false
+    },
+    raidCooldownEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false
     }
 });
 
@@ -367,7 +372,8 @@ async function migrateDatabase() {
                 { name: 'raidMinRiskAmount', type: 'INTEGER NOT NULL DEFAULT 3' },
                 { name: 'raidMaxRiskAmount', type: 'INTEGER NOT NULL DEFAULT 20' },
                 { name: 'raidSuccessCooldownHours', type: 'INTEGER NOT NULL DEFAULT 4' },
-                { name: 'raidFailureCooldownHours', type: 'INTEGER NOT NULL DEFAULT 2' }
+                { name: 'raidFailureCooldownHours', type: 'INTEGER NOT NULL DEFAULT 2' },
+                { name: 'raidCooldownEnabled', type: 'BOOLEAN NOT NULL DEFAULT true' }
             ];
             
             for (const column of newRaidColumns) {

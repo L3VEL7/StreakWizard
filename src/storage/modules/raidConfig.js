@@ -30,7 +30,7 @@ async function getRaidConfig(guildId) {
         // Debug logging
         console.log(`Raid config for guild ${guildId}:`, {
             raidEnabled: config.raidEnabled,
-            raidCooldownEnabled: config.raidCooldownEnabled
+            raidCooldownEnabled: config.raidCooldownEnabled === false ? false : true
         });
         
         // Return config with defaults for missing values
@@ -64,6 +64,14 @@ async function updateRaidConfig(guildId, config) {
         // Debug logging
         console.log(`Updating raid config for guild ${guildId}:`, config);
         
+        // Make sure cooldownEnabled is explicitly a boolean
+        let cooldownEnabled = undefined;
+        if (typeof config.cooldownEnabled === 'boolean') {
+            cooldownEnabled = config.cooldownEnabled;
+        } else if (config.cooldownEnabled !== undefined) {
+            cooldownEnabled = config.cooldownEnabled === true;
+        }
+        
         // Apply the updates to the database
         await GuildConfig.upsert({
             guildId,
@@ -75,7 +83,7 @@ async function updateRaidConfig(guildId, config) {
             raidMaxRiskAmount: config.maxRiskAmount,
             raidSuccessCooldownHours: config.successCooldownHours,
             raidFailureCooldownHours: config.failureCooldownHours,
-            raidCooldownEnabled: typeof config.cooldownEnabled === 'boolean' ? config.cooldownEnabled : undefined
+            raidCooldownEnabled: cooldownEnabled
         });
         
         // Get and return the updated config

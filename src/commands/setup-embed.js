@@ -556,8 +556,8 @@ module.exports = {
                             const raidConfig = await streakManager.getRaidConfig(i.guildId);
                             console.log('Current cooldown enabled status:', raidConfig.cooldownEnabled);
                             
-                            // Toggle the cooldown status - explicitly use false/true
-                            const newCooldownEnabled = raidConfig.cooldownEnabled === false ? true : false;
+                            // Toggle the cooldown status - make sure it's a boolean value
+                            const newCooldownEnabled = raidConfig.cooldownEnabled === true ? false : true;
                             console.log('Setting cooldown enabled to:', newCooldownEnabled);
                             
                             // Update the config with explicit boolean value
@@ -585,7 +585,7 @@ module.exports = {
                                 .setTitle('⏰ Raid Cooldown Settings')
                                 .setDescription('Configure how long users must wait between raids')
                                 .addFields(
-                                    { name: 'Cooldown Status', value: `${updatedRaidConfig.cooldownEnabled === false ? '❌ Disabled' : '✅ Enabled'}` },
+                                    { name: 'Cooldown Status', value: `${updatedRaidConfig.cooldownEnabled === true ? '✅ Enabled' : '❌ Disabled'}` },
                                     { name: 'Success Cooldown', value: `${updatedRaidConfig.successCooldownHours || 4} hours` },
                                     { name: 'Failure Cooldown', value: `${updatedRaidConfig.failureCooldownHours || 2} hours` },
                                     { name: 'How it works', value: 'Success cooldown applies after winning a raid. Failure cooldown (shorter) applies after losing a raid.' }
@@ -596,8 +596,8 @@ module.exports = {
                                 .addComponents(
                                     new ButtonBuilder()
                                         .setCustomId('raid_cooldown_toggle')
-                                        .setLabel(`${updatedRaidConfig.cooldownEnabled === false ? 'Enable' : 'Disable'} Cooldowns`)
-                                        .setStyle(updatedRaidConfig.cooldownEnabled === false ? ButtonStyle.Success : ButtonStyle.Danger)
+                                        .setLabel(`${updatedRaidConfig.cooldownEnabled === true ? 'Disable' : 'Enable'} Cooldowns`)
+                                        .setStyle(updatedRaidConfig.cooldownEnabled === true ? ButtonStyle.Danger : ButtonStyle.Success)
                                 );
                             
                             // Create success cooldown adjustment row
@@ -781,7 +781,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
             { name: 'Success Chance', value: `Base: ${config.successChance}% (+5% initiator bonus, +3-15% progressive bonus based on target's streak)` },
             { name: 'Max Steal', value: `Current: ${config.maxStealPercent}% (Min: ${config.minStealAmount}, Max: ${config.maxStealAmount})\nUnderdogs get +5-10% bonus!` },
             { name: 'Risk', value: `Current: ${config.riskPercent}% (Min: ${config.minRiskAmount}, Max: ${config.maxRiskAmount})\nUnderdogs get up to 40% risk reduction!` },
-            { name: 'Cooldown', value: `Status: ${config.cooldownEnabled === false ? '❌ Disabled' : '✅ Enabled'}\nSuccess: ${config.successCooldownHours}h | Failure: ${config.failureCooldownHours}h` }
+            { name: 'Cooldown', value: `Status: ${config.cooldownEnabled === true ? '✅ Enabled' : '❌ Disabled'}\nSuccess: ${config.successCooldownHours}h | Failure: ${config.failureCooldownHours}h` }
         );
 
     const selectRow = new ActionRowBuilder()
@@ -815,7 +815,7 @@ async function handleRaidConfig(interaction, originalInteraction) {
                         emoji: '⚠️'
                     },
                     {
-                        label: `Cooldown Times ${config.cooldownEnabled === false ? '❌' : '✅'}`,
+                        label: `Cooldown Times ${config.cooldownEnabled === true ? '✅' : '❌'}`,
                         description: 'Set cooldown for success/failure',
                         value: 'cooldown_settings',
                         emoji: '⏰'
@@ -1801,7 +1801,7 @@ async function showMainMenu(interaction, guildId) {
             .setDescription('Select a feature to configure from the dropdown menu below.')
             .addFields(
                 { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
-                { name: '⚔️ Raid System', value: `Status: ${raidDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidDefaults.maxStealPercent}%\nRisk: ${raidDefaults.riskPercent}%\nSuccess Chance: ${raidDefaults.successChance}%\nCooldown: ${raidDefaults.cooldownEnabled === false ? '❌ Disabled' : '✅ Enabled'} ${raidDefaults.cooldownHours}h` },
+                { name: '⚔️ Raid System', value: `Status: ${raidDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidDefaults.maxStealPercent}%\nRisk: ${raidDefaults.riskPercent}%\nSuccess Chance: ${raidDefaults.successChance}%\nCooldown: ${raidDefaults.cooldownEnabled === true ? '✅ Enabled' : '❌ Disabled'} ${raidDefaults.cooldownHours}h` },
                 { name: '🎲 Gambling System', value: `Status: ${gamblingDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingDefaults.successChance}%\nMax Gamble: ${gamblingDefaults.maxGamblePercent}%\nMin Streaks: ${gamblingDefaults.minStreaks}` }
             );
 
@@ -2053,7 +2053,7 @@ async function handleRaidCooldownSettings(interaction, originalInteraction) {
         .setTitle('⏰ Raid Cooldown Settings')
         .setDescription('Configure how long users must wait between raids')
         .addFields(
-            { name: 'Cooldown Status', value: `${raidConfig.cooldownEnabled ? '✅ Enabled' : '❌ Disabled'}` },
+            { name: 'Cooldown Status', value: `${raidConfig.cooldownEnabled === true ? '✅ Enabled' : '❌ Disabled'}` },
             { name: 'Success Cooldown', value: `${raidConfig.successCooldownHours || 4} hours` },
             { name: 'Failure Cooldown', value: `${raidConfig.failureCooldownHours || 2} hours` },
             { name: 'How it works', value: 'Success cooldown applies after winning a raid. Failure cooldown (shorter) applies after losing a raid.' }
@@ -2064,8 +2064,8 @@ async function handleRaidCooldownSettings(interaction, originalInteraction) {
         .addComponents(
             new ButtonBuilder()
                 .setCustomId('raid_cooldown_toggle')
-                .setLabel(`${raidConfig.cooldownEnabled ? 'Disable' : 'Enable'} Cooldowns`)
-                .setStyle(raidConfig.cooldownEnabled ? ButtonStyle.Danger : ButtonStyle.Success)
+                .setLabel(`${raidConfig.cooldownEnabled === true ? 'Disable' : 'Enable'} Cooldowns`)
+                .setStyle(raidConfig.cooldownEnabled === true ? ButtonStyle.Danger : ButtonStyle.Success)
         );
     
     // Create success cooldown adjustment row
