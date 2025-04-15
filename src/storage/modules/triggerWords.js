@@ -50,6 +50,121 @@ async function setTriggerWords(guildId, words) {
 }
 
 /**
+ * Add a single trigger word to a guild
+ */
+async function addTriggerWord(guildId, word) {
+    if (!word || typeof word !== 'string') {
+        return { success: false, message: 'Invalid trigger word' };
+    }
+
+    const processedWord = word.toLowerCase().trim();
+    if (processedWord.length === 0) {
+        return { success: false, message: 'Trigger word cannot be empty' };
+    }
+
+    try {
+        // Get existing config
+        let config = await GuildConfig.findByPk(guildId);
+        
+        // Initialize with empty array if no config exists
+        const existingWords = config ? (config.triggerWords || []) : [];
+        
+        // Check if word already exists
+        if (existingWords.some(w => w.toLowerCase() === processedWord)) {
+            return { 
+                success: false, 
+                message: `Trigger word "${processedWord}" already exists`,
+                words: existingWords
+            };
+        }
+        
+        // Add the new word
+        const updatedWords = [...existingWords, processedWord];
+        
+        // Update the config
+        [config] = await GuildConfig.upsert({
+            guildId,
+            triggerWords: updatedWords
+        }, {
+            returning: true
+        });
+
+        console.log(`Added trigger word "${processedWord}" to guild ${guildId}`);
+        
+        return { 
+            success: true, 
+            message: `Added trigger word "${processedWord}"`,
+            words: updatedWords
+        };
+    } catch (error) {
+        console.error(`Error adding trigger word "${processedWord}":`, error);
+        return { 
+            success: false, 
+            message: `Error adding trigger word: ${error.message}` 
+        };
+    }
+}
+
+/**
+ * Remove a trigger word from a guild
+ */
+async function removeTriggerWord(guildId, word) {
+    if (!word || typeof word !== 'string') {
+        return { success: false, message: 'Invalid trigger word' };
+    }
+
+    const processedWord = word.toLowerCase().trim();
+
+    try {
+        // Get existing config
+        const config = await GuildConfig.findByPk(guildId);
+        
+        // If no config, nothing to remove
+        if (!config || !config.triggerWords) {
+            return { 
+                success: false, 
+                message: 'No trigger words found',
+                words: []
+            };
+        }
+        
+        const existingWords = config.triggerWords;
+        
+        // Check if word exists
+        if (!existingWords.some(w => w.toLowerCase() === processedWord)) {
+            return { 
+                success: false, 
+                message: `Trigger word "${processedWord}" not found`,
+                words: existingWords
+            };
+        }
+        
+        // Filter out the word to remove
+        const updatedWords = existingWords
+            .filter(w => w.toLowerCase() !== processedWord);
+        
+        // Update the config
+        await config.update({
+            triggerWords: updatedWords
+        });
+
+        console.log(`Removed trigger word "${processedWord}" from guild ${guildId}`);
+        
+        return { 
+            success: true, 
+            message: `Removed trigger word "${processedWord}"`,
+            words: updatedWords
+        };
+    } catch (error) {
+        console.error(`Error removing trigger word "${processedWord}":`, error);
+        return { 
+            success: false, 
+            message: `Error removing trigger word: ${error.message}` 
+        };
+    }
+}
+
+/**
  * Get trigger words for a guild
  */
 async function getTriggerWords(guildId) {
@@ -167,5 +282,7 @@ module.exports = {
     setTriggerWords,
     getTriggerWords,
     getTriggerWordsForProfile,
-    isValidTriggerWord
+    isValidTriggerWord,
+    addTriggerWord,
+    removeTriggerWord
 }; 

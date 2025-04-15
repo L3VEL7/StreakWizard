@@ -266,6 +266,50 @@ async function getRemainingTime(guildId, userId, triggerWord) {
     }
 }
 
+/**
+ * Reset a user's streak for a specific trigger word
+ */
+async function resetStreak(guildId, userId, triggerWord) {
+    try {
+        const streak = await Streak.findOne({
+            where: {
+                guildId,
+                userId,
+                triggerWord
+            }
+        });
+        
+        if (!streak) {
+            return {
+                success: false,
+                message: `No streak found for word "${triggerWord}"`
+            };
+        }
+        
+        // Store old value for reporting
+        const oldCount = streak.count;
+        
+        // Reset the streak count to 0
+        await streak.update({
+            count: 0,
+            missedCount: 0,
+            streakUpdatedAt: new Date()
+        });
+        
+        return {
+            success: true,
+            oldCount,
+            message: `Reset streak for "${triggerWord}" from ${oldCount} to 0`
+        };
+    } catch (error) {
+        console.error('Error resetting streak:', error);
+        return {
+            success: false,
+            message: `Error resetting streak: ${error.message}`
+        };
+    }
+}
+
 module.exports = {
     getStreaks,
     getUserStreaks,
@@ -276,5 +320,6 @@ module.exports = {
     getMilestone,
     isStreakStreakEnabled,
     setStreakStreakEnabled,
-    getRemainingTime
+    getRemainingTime,
+    resetStreak
 }; 

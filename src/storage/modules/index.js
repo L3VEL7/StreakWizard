@@ -14,6 +14,7 @@ const raidConfig = require('./raidConfig');
 const raidHistory = require('./raidHistory');
 const raidActions = require('./raidActions');
 const gambling = require('./gambling');
+const stats = require('./stats');
 
 // Initialize RaidHistory table
 setTimeout(async () => {
@@ -38,12 +39,15 @@ module.exports = {
     isStreakStreakEnabled: streakCore.isStreakStreakEnabled,
     setStreakStreakEnabled: streakCore.setStreakStreakEnabled,
     getRemainingTime: streakCore.getRemainingTime,
+    resetStreak: streakCore.resetStreak,
     
     // Trigger word functions
     setTriggerWords: triggerWords.setTriggerWords,
     getTriggerWords: triggerWords.getTriggerWords,
     getTriggerWordsForProfile: triggerWords.getTriggerWordsForProfile,
     isValidTriggerWord: triggerWords.isValidTriggerWord,
+    addTriggerWord: triggerWords.addTriggerWord,
+    removeTriggerWord: triggerWords.removeTriggerWord,
     
     // Raid configuration functions
     getRaidConfig: raidConfig.getRaidConfig,
@@ -65,6 +69,10 @@ module.exports = {
     updateGamblingConfig: gambling.updateGamblingConfig,
     getUserStreaksForGambling: gambling.getUserStreaksForGambling,
     gambleStreak: gambling.gambleStreak,
+    
+    // Stats functions
+    getStats: stats.getStats,
+    getLeaderboard: stats.getLeaderboard,
     
     // Constants
     MILESTONES: constants.MILESTONES,
