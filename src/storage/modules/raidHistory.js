@@ -72,6 +72,7 @@ async function getRemainingRaidTime(guildId, userId) {
         if (config.cooldownEnabled === false) {
             return {
                 canRaid: true,
+                cooldownsDisabled: true,
                 message: 'Raid cooldowns are disabled. You can raid anytime.'
             };
         }

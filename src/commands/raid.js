@@ -116,16 +116,26 @@ module.exports = {
                         },
                         { 
                             name: 'Raid Stats', 
-                            value: `✅ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}\n\n__Success Chance Breakdown:__\nBase: ${result.baseSuccessChance}%\nInitiator Bonus: +${result.initiatorBonus}%\nStreak Size Bonus: +${result.progressiveBonus}%\n${result.streakRatio < 0.75 ? `Underdog Bonus: Risk reduced by ${Math.round((1-result.streakRatio)*100)}%` : ""}`, 
-                            inline: false 
-                        },
-                        { 
-                            name: 'Cooldown', 
-                            value: result.cooldownMessage, 
+                            value: `✅ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
                             inline: false 
                         }
                     )
                     .setTimestamp();
+
+                // Add cooldown field only if cooldowns are enabled
+                if (result.cooldownEnabled !== false) {
+                    embed.addFields({
+                        name: 'Cooldown', 
+                        value: `You can raid again ${result.nextRaidTime}`, 
+                        inline: false 
+                    });
+                } else {
+                    embed.addFields({
+                        name: 'Cooldown', 
+                        value: 'Cooldowns are disabled. You can raid again immediately.', 
+                        inline: false 
+                    });
+                }
 
                 await interaction.editReply({
                     content: null,
@@ -151,16 +161,26 @@ module.exports = {
                         },
                         { 
                             name: 'Raid Stats', 
-                            value: `❌ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}\n\n__Success Chance Breakdown:__\nBase: ${result.baseSuccessChance}%\nInitiator Bonus: +${result.initiatorBonus}%\nStreak Size Bonus: +${result.progressiveBonus}%\n${result.streakRatio < 0.75 ? `Underdog Bonus: Risk reduced by ${Math.round((1-result.streakRatio)*100)}%` : ""}`, 
-                            inline: false 
-                        },
-                        { 
-                            name: 'Cooldown', 
-                            value: result.cooldownMessage, 
+                            value: `❌ Success rate: ${Math.round(result.successChance)}%\n🎲 You rolled: ${Math.floor(result.successRoll)}`, 
                             inline: false 
                         }
                     )
                     .setTimestamp();
+
+                // Add cooldown field only if cooldowns are enabled
+                if (result.cooldownEnabled !== false) {
+                    embed.addFields({
+                        name: 'Cooldown', 
+                        value: `You can raid again ${result.nextRaidTime}`, 
+                        inline: false 
+                    });
+                } else {
+                    embed.addFields({
+                        name: 'Cooldown', 
+                        value: 'Cooldowns are disabled. You can raid again immediately.', 
+                        inline: false 
+                    });
+                }
 
                 await interaction.editReply({
                     content: null,

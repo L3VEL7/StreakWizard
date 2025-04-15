@@ -42,7 +42,9 @@ async function raidUserStreak(guildId, attackerId, defenderId, word) {
         
         // Check if raider has an active raid cooldown
         const cooldownInfo = await getRemainingRaidTime(guildId, attackerId);
-        if (!cooldownInfo.canRaid) {
+        
+        // Only block if cooldowns are enabled and user can't raid
+        if (!cooldownInfo.cooldownsDisabled && !cooldownInfo.canRaid) {
             return { success: false, message: cooldownInfo.message };
         }
         
@@ -158,28 +160,35 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
             resultMessage = `Raid failed! You lost ${riskAmount} streaks to <@${defenderId}>. Your streak is now ${Math.max(1, attackerNewStreak)}.`;
         }
         
-        // Store raid attempt in user's raid history
-        try {
-            await updateRaidHistory(guildId, attackerId, {
-                lastRaidDate: new Date(),
-                lastRaidSuccess: isSuccess
-            });
-        } catch (historyError) {
-            console.error('Failed to update raid history, continuing anyway:', historyError);
-            // Don't fail the raid due to history update issue
+        // Check if cooldowns are enabled before updating raid history
+        if (raidConfig.cooldownEnabled !== false) {
+            // Store raid attempt in user's raid history
+            try {
+                await updateRaidHistory(guildId, attackerId, {
+                    lastRaidDate: new Date(),
+                    lastRaidSuccess: isSuccess
+                });
+            } catch (historyError) {
+                console.error('Failed to update raid history, continuing anyway:', historyError);
+                // Don't fail the raid due to history update issue
+            }
         }
         
-        // Determine cooldown hours
-        const cooldownHours = isSuccess ?
-            (raidConfig.successCooldownHours || 4) :
-            (raidConfig.failureCooldownHours || 2);
-        
-        // Calculate next raid time
-        const nextRaidDate = new Date();
-        nextRaidDate.setHours(nextRaidDate.getHours() + cooldownHours);
-        
-        // Format for Discord timestamp
-        const nextRaidTimeFormatted = `<t:${Math.floor(nextRaidDate.getTime() / 1000)}:R>`;
+        // Calculate next raid time if cooldowns are enabled
+        let nextRaidTimeFormatted = '';
+        if (raidConfig.cooldownEnabled !== false) {
+            // Determine cooldown hours
+            const cooldownHours = isSuccess ?
+                (raidConfig.successCooldownHours || 4) :
+                (raidConfig.failureCooldownHours || 2);
+            
+            // Calculate next raid time
+            const nextRaidDate = new Date();
+            nextRaidDate.setHours(nextRaidDate.getHours() + cooldownHours);
+            
+            // Format for Discord timestamp
+            nextRaidTimeFormatted = `<t:${Math.floor(nextRaidDate.getTime() / 1000)}:R>`;
+        }
         
         // Commit the transaction
         await transaction.commit();
@@ -198,18 +207,16 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
             successChance,
             successRoll,
             baseSuccessChance,
-            initiatorBonus,
-            progressiveBonus,
-            streakRatio,
-            cooldownMessage: `You can raid again ${nextRaidTimeFormatted}.`,
-            cooldownHours,
+            cooldownEnabled: raidConfig.cooldownEnabled,
+            nextRaidTime: nextRaidTimeFormatted || 'No cooldown'
         };
     } catch (error) {
-        // If there's an error, rollback the transaction if it's still active
+        // Rollback transaction on error if it's still active
         if (transaction && !transaction.finished) {
             await transaction.rollback();
         }
-        console.error('Error executing raid:', error);
+        
+        console.error('Error in executeRaid:', error);
         throw error;
     }
 }

@@ -549,6 +549,9 @@ module.exports = {
                     // Add handler for cooldown toggle button
                     if (i.customId === 'raid_cooldown_toggle') {
                         try {
+                            // Defer the update to prevent interaction already replied errors
+                            await i.deferUpdate();
+                            
                             const raidConfig = await streakManager.getRaidConfig(i.guildId);
                             const newCooldownEnabled = !raidConfig.cooldownEnabled;
                             
@@ -559,20 +562,88 @@ module.exports = {
                             });
                             
                             // Show a confirmation message
-                            await i.reply({
+                            await i.followUp({
                                 content: `Raid cooldowns ${newCooldownEnabled ? 'enabled' : 'disabled'} successfully.`,
                                 ephemeral: true
                             });
                             
-                            // Show the updated cooldown settings
-                            await handleRaidCooldownSettings(i, interaction);
+                            // Update the cooldown settings display
+                            const updatedRaidConfig = await streakManager.getRaidConfig(i.guildId);
+                            
+                            const embed = new EmbedBuilder()
+                                .setColor('#0099ff')
+                                .setTitle('⏰ Raid Cooldown Settings')
+                                .setDescription('Configure how long users must wait between raids')
+                                .addFields(
+                                    { name: 'Cooldown Status', value: `${updatedRaidConfig.cooldownEnabled ? '✅ Enabled' : '❌ Disabled'}` },
+                                    { name: 'Success Cooldown', value: `${updatedRaidConfig.successCooldownHours || 4} hours` },
+                                    { name: 'Failure Cooldown', value: `${updatedRaidConfig.failureCooldownHours || 2} hours` },
+                                    { name: 'How it works', value: 'Success cooldown applies after winning a raid. Failure cooldown (shorter) applies after losing a raid.' }
+                                );
+                            
+                            // Create toggle cooldown button
+                            const toggleRow = new ActionRowBuilder()
+                                .addComponents(
+                                    new ButtonBuilder()
+                                        .setCustomId('raid_cooldown_toggle')
+                                        .setLabel(`${updatedRaidConfig.cooldownEnabled ? 'Disable' : 'Enable'} Cooldowns`)
+                                        .setStyle(updatedRaidConfig.cooldownEnabled ? ButtonStyle.Danger : ButtonStyle.Success)
+                                );
+                            
+                            // Create success cooldown adjustment row
+                            const successRow = new ActionRowBuilder()
+                                .addComponents(
+                                    new ButtonBuilder()
+                                        .setCustomId('raid_success_cooldown_minus1')
+                                        .setLabel('Success -1h')
+                                        .setStyle(ButtonStyle.Secondary),
+                                    new ButtonBuilder()
+                                        .setCustomId('raid_success_cooldown_plus1')
+                                        .setLabel('Success +1h')
+                                        .setStyle(ButtonStyle.Secondary)
+                                );
+                            
+                            // Create failure cooldown adjustment row
+                            const failureRow = new ActionRowBuilder()
+                                .addComponents(
+                                    new ButtonBuilder()
+                                        .setCustomId('raid_failure_cooldown_minus1')
+                                        .setLabel('Failure -1h')
+                                        .setStyle(ButtonStyle.Secondary),
+                                    new ButtonBuilder()
+                                        .setCustomId('raid_failure_cooldown_plus1')
+                                        .setLabel('Failure +1h')
+                                        .setStyle(ButtonStyle.Secondary)
+                                );
+                            
+                            // Back button row
+                            const backRow = new ActionRowBuilder()
+                                .addComponents(
+                                    new ButtonBuilder()
+                                        .setCustomId('back_to_raid_config')
+                                        .setLabel('Back to Raid Settings')
+                                        .setStyle(ButtonStyle.Primary)
+                                );
+                                
+                            // Update the message with the new embed and components
+                            await i.editReply({
+                                embeds: [embed],
+                                components: [toggleRow, successRow, failureRow, backRow],
+                                ephemeral: true
+                            });
+                            
                             return;
                         } catch (error) {
                             console.error('Error toggling raid cooldowns:', error);
-                            await i.reply({
-                                content: '❌ An error occurred while toggling raid cooldowns.',
-                                ephemeral: true
-                            });
+                            try {
+                                // Try to send a followup if possible
+                                await i.followUp({
+                                    content: '❌ An error occurred while toggling raid cooldowns.',
+                                    ephemeral: true
+                                });
+                            } catch (followupError) {
+                                console.error('Failed to send error followup:', followupError);
+                            }
                             return;
                         }
                     }
