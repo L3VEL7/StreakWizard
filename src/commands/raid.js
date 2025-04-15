@@ -66,7 +66,7 @@ module.exports = {
             const defenderCount = targetStreak ? targetStreak.count : 0;
 
             // Perform the raid using the new function
-            const result = await streakManager.raidUserStreak(
+            let result = await streakManager.raidUserStreak(
                 interaction.guildId,
                 interaction.user.id,
                 target.id,
@@ -75,11 +75,47 @@ module.exports = {
 
             // If the raid couldn't be initiated due to pre-conditions
             if (!result.success) {
-                await interaction.editReply({
-                    content: `❌ ${result.message}`,
-                    ephemeral: false
-                });
-                return;
+                // Double-check if this is a cooldown error and if cooldowns are disabled
+                if (result.message.includes("raid cooldown") || result.message.includes("You can raid again")) {
+                    // Get fresh raid config to ensure we have the latest settings
+                    const freshConfig = await streakManager.getRaidConfig(interaction.guildId);
+                    if (freshConfig.cooldownEnabled === false) {
+                        // If cooldowns are disabled but we got a cooldown error, ignore it and retry
+                        console.log('Cooldowns disabled but got cooldown error. Retrying raid...');
+                        
+                        // Force a raid bypass
+                        const bypassResult = await streakManager.raidUserStreak(
+                            interaction.guildId,
+                            interaction.user.id,
+                            target.id,
+                            word,
+                            true // Add this parameter to indicate a forced bypass
+                        );
+                        
+                        if (bypassResult.success) {
+                            // Continue with the bypassed result
+                            result = bypassResult;
+                        } else {
+                            await interaction.editReply({
+                                content: `❌ ${bypassResult.message}`,
+                                ephemeral: false
+                            });
+                            return;
+                        }
+                    } else {
+                        await interaction.editReply({
+                            content: `❌ ${result.message}`,
+                            ephemeral: false
+                        });
+                        return;
+                    }
+                } else {
+                    await interaction.editReply({
+                        content: `❌ ${result.message}`,
+                        ephemeral: false
+                    });
+                    return;
+                }
             }
 
             // Prepare data for narrative message

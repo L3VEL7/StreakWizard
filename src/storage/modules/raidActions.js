@@ -11,8 +11,13 @@ const { isValidTriggerWord } = require('./triggerWords');
 
 /**
  * Execute a raid between users
+ * @param {string} guildId - The guild ID
+ * @param {string} attackerId - The attacker's user ID
+ * @param {string} defenderId - The defender's user ID
+ * @param {string} word - The trigger word for the raid
+ * @param {boolean} bypassCooldown - Optional flag to bypass cooldown checks
  */
-async function raidUserStreak(guildId, attackerId, defenderId, word) {
+async function raidUserStreak(guildId, attackerId, defenderId, word, bypassCooldown = false) {
     try {
         // Convert IDs to strings for consistency
         guildId = String(guildId);
@@ -40,12 +45,14 @@ async function raidUserStreak(guildId, attackerId, defenderId, word) {
             return { success: false, message: 'Raiding is currently disabled in this server.' };
         }
         
-        // Check if raider has an active raid cooldown
-        const cooldownInfo = await getRemainingRaidTime(guildId, attackerId);
-        
-        // Only block if cooldowns are enabled and user can't raid
-        if (!cooldownInfo.cooldownsDisabled && !cooldownInfo.canRaid) {
-            return { success: false, message: cooldownInfo.message };
+        // If we're not bypassing cooldowns and cooldowns are enabled, check if raider has an active cooldown
+        if (!bypassCooldown && raidConfig.cooldownEnabled !== false) {
+            const cooldownInfo = await getRemainingRaidTime(guildId, attackerId);
+            
+            // Only block if user can't raid
+            if (!cooldownInfo.canRaid) {
+                return { success: false, message: cooldownInfo.message };
+            }
         }
         
         // Get streaks for both users
@@ -59,6 +66,9 @@ async function raidUserStreak(guildId, attackerId, defenderId, word) {
                 message: `${defenderId} doesn't have any ${word} streaks to raid!` 
             };
         }
+        
+        // Set the cooldown enforcement for this raid
+        raidConfig.enforceCooldown = !bypassCooldown && raidConfig.cooldownEnabled !== false;
         
         // Execute the raid using a transaction for data consistency
         return await executeRaid(guildId, attackerId, defenderId, attackerStreak, defenderStreak, raidConfig);
@@ -161,7 +171,7 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
         }
         
         // Check if cooldowns are enabled before updating raid history
-        if (raidConfig.cooldownEnabled !== false) {
+        if (raidConfig.enforceCooldown) {
             // Store raid attempt in user's raid history
             try {
                 await updateRaidHistory(guildId, attackerId, {
@@ -176,7 +186,7 @@ async function executeRaid(guildId, attackerId, defenderId, attackerStreak, defe
         
         // Calculate next raid time if cooldowns are enabled
         let nextRaidTimeFormatted = '';
-        if (raidConfig.cooldownEnabled !== false) {
+        if (raidConfig.enforceCooldown) {
             // Determine cooldown hours
             const cooldownHours = isSuccess ?
                 (raidConfig.successCooldownHours || 4) :
