@@ -85,8 +85,14 @@ module.exports = {
                 }
             } else if (subcommand === 'trigger') {
                 const word = interaction.options.getString('word');
-                const lowercaseWord = word.toLowerCase();
+                if (!word) {
+                    return await interaction.editReply({
+                        content: '❌ Please provide a trigger word to reset.',
+                        ephemeral: true
+                    });
+                }
 
+                const lowercaseWord = word.toLowerCase();
                 if (!triggerWords.includes(lowercaseWord)) {
                     return await interaction.editReply({
                         content: `❌ "${word}" is not a configured trigger word.`,
