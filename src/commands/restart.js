@@ -1,5 +1,12 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { sequelize } = require('../database/models');
+// Try to import sequelize, but don't fail if it doesn't exist
+let sequelize;
+try {
+    const models = require('../database/models');
+    sequelize = models.sequelize;
+} catch (error) {
+    console.warn('Could not import sequelize models:', error.message);
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,16 +22,21 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.reply({
+            content: '🔄 Restarting bot...',
+            ephemeral: true
+        });
 
         try {
-            await interaction.editReply({
-                content: '🔄 Restarting bot...',
-                ephemeral: true
-            });
-
-            // Close database connection
-            await sequelize.close();
+            // Close database connection if available
+            if (sequelize) {
+                try {
+                    await sequelize.close();
+                    console.log('Database connection closed');
+                } catch (dbError) {
+                    console.error('Error closing database connection:', dbError);
+                }
+            }
 
             // Make sure to wait a moment for the reply to be sent before exiting
             setTimeout(() => {
@@ -33,7 +45,7 @@ module.exports = {
             }, 1000);
         } catch (error) {
             console.error('Error during restart:', error);
-            await interaction.editReply({
+            await interaction.followUp({
                 content: '❌ An error occurred while restarting the bot.',
                 ephemeral: true
             });
