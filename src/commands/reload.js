@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,7 +10,28 @@ module.exports = {
         .addStringOption(option =>
             option.setName('command')
                 .setDescription('The command to reload')
-                .setRequired(true)),
+                .setRequired(true)
+                .setAutocomplete(true)),
+
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused();
+        const commands = [];
+        const commandsPath = path.join(__dirname);
+        const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+        for (const file of commandFiles) {
+            const filePath = path.join(commandsPath, file);
+            const command = require(filePath);
+            if ('data' in command && 'execute' in command) {
+                commands.push(command.data.name);
+            }
+        }
+
+        const filtered = commands.filter(command => command.toLowerCase().includes(focusedValue.toLowerCase()));
+        await interaction.respond(
+            filtered.map(command => ({ name: command, value: command }))
+        );
+    },
 
     async execute(interaction) {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -20,51 +41,33 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        const commandName = interaction.options.getString('command', true).toLowerCase();
+        const command = interaction.client.commands.get(commandName);
+
+        if (!command) {
+            return await interaction.reply({
+                content: `❌ There is no command with name \`${commandName}\`!`,
+                ephemeral: true
+            });
+        }
 
         try {
-            const commandName = interaction.options.getString('command', true).toLowerCase();
-            const commandPath = path.join(__dirname, `${commandName}.js`);
-
-            if (!fs.existsSync(commandPath)) {
-                return await interaction.editReply({
-                    content: `❌ Command \`${commandName}\` not found.`,
-                    ephemeral: true
-                });
-            }
-
             // Delete the command from the collection
-            try {
-                delete require.cache[require.resolve(commandPath)];
-                
-                // Reload the command
-                const command = require(commandPath);
-                
-                // Validate command structure
-                if (!command.data || !command.data.name || !command.execute) {
-                    return await interaction.editReply({
-                        content: `❌ Command \`${commandName}\` has invalid structure.`,
-                        ephemeral: true
-                    });
-                }
-                
-                interaction.client.commands.set(command.data.name, command);
+            delete require.cache[require.resolve(`./${commandName}.js`)];
+            interaction.client.commands.delete(command.data.name);
 
-                await interaction.editReply({
-                    content: `✅ Command \`${commandName}\` was reloaded!`,
-                    ephemeral: true
-                });
-            } catch (loadError) {
-                console.error('Error reloading command:', loadError);
-                await interaction.editReply({
-                    content: `❌ There was an error while reloading command \`${commandName}\`:\n\`\`\`${loadError.message}\`\`\``,
-                    ephemeral: true
-                });
-            }
+            // Load the command again
+            const newCommand = require(`./${commandName}.js`);
+            interaction.client.commands.set(newCommand.data.name, newCommand);
+
+            await interaction.reply({
+                content: `✅ Command \`${commandName}\` was reloaded!`,
+                ephemeral: true
+            });
         } catch (error) {
             console.error('Error reloading command:', error);
-            await interaction.editReply({
-                content: `❌ There was an error while reloading command:\n\`\`\`${error.message}\`\`\``,
+            await interaction.reply({
+                content: `❌ There was an error while reloading a command \`${commandName}\`:\n\`${error.message}\``,
                 ephemeral: true
             });
         }

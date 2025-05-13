@@ -35,7 +35,7 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply();
 
         try {
             const subcommand = interaction.options.getSubcommand();
@@ -84,9 +84,13 @@ module.exports = {
                     });
                 }
             } else if (subcommand === 'trigger') {
-                // Get the word from the subcommand options
-                const word = interaction.options.getString('word', true); // true means it's required
-                console.log('Trigger word from command:', word); // Debug log
+                const word = interaction.options.getString('word');
+                if (!word) {
+                    return await interaction.editReply({
+                        content: '❌ Please provide a trigger word to reset.',
+                        ephemeral: true
+                    });
+                }
 
                 const lowercaseWord = word.toLowerCase();
                 if (!triggerWords.includes(lowercaseWord)) {
@@ -98,7 +102,6 @@ module.exports = {
 
                 // Get all users with streaks for this word
                 const users = await streakManager.getUsersWithStreaks(interaction.guildId, lowercaseWord);
-                console.log('Users with streaks:', users); // Debug log
                 
                 if (!users || users.length === 0) {
                     return await interaction.editReply({
