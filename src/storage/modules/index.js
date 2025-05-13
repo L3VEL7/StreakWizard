@@ -40,6 +40,7 @@ module.exports = {
     setStreakStreakEnabled: streakCore.setStreakStreakEnabled,
     getRemainingTime: streakCore.getRemainingTime,
     resetStreak: streakCore.resetStreak,
+    getUsersWithStreaks: streakCore.getUsersWithStreaks,
     
     // Trigger word functions
     setTriggerWords: triggerWords.setTriggerWords,

@@ -113,8 +113,10 @@ module.exports = {
                 // Reset streaks for all users
                 let resetCount = 0;
                 for (const userId of users) {
-                    await streakManager.resetStreak(interaction.guildId, userId, lowercaseWord);
-                    resetCount++;
+                    const result = await streakManager.resetStreak(interaction.guildId, userId, lowercaseWord);
+                    if (result.success) {
+                        resetCount++;
+                    }
                 }
 
                 await interaction.editReply({

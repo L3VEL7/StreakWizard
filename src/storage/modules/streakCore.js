@@ -310,6 +310,27 @@ async function resetStreak(guildId, userId, triggerWord) {
     }
 }
 
+/**
+ * Get all users who have streaks for a specific trigger word
+ */
+async function getUsersWithStreaks(guildId, triggerWord) {
+    try {
+        const streaks = await Streak.findAll({
+            where: {
+                guildId,
+                triggerWord: triggerWord.toLowerCase()
+            },
+            attributes: ['userId'],
+            raw: true
+        });
+        
+        return streaks.map(streak => streak.userId);
+    } catch (error) {
+        console.error('Error getting users with streaks:', error);
+        return [];
+    }
+}
+
 module.exports = {
     getStreaks,
     getUserStreaks,
@@ -321,5 +342,6 @@ module.exports = {
     isStreakStreakEnabled,
     setStreakStreakEnabled,
     getRemainingTime,
-    resetStreak
+    resetStreak,
+    getUsersWithStreaks
 }; 
