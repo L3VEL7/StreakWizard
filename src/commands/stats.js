@@ -29,12 +29,11 @@ module.exports = {
             let hasStats = false;
             for (const word of triggerWords) {
                 const stats = await streakManager.getStats(interaction.guildId, word);
-                if (stats && stats.total > 0) {
+                if (stats && stats.totalStreaks > 0) {
                     hasStats = true;
-                    const average = stats.average || 0;
                     embed.addFields({
                         name: `📝 ${word}`,
-                        value: `Total Streaks: ${stats.total}\nActive Users: ${stats.users}\nAverage Streak: ${average.toFixed(1)}`
+                        value: `Total Streaks: ${stats.totalStreaks}\nActive Users: ${stats.uniqueUsers}\nAverage Streak: ${stats.averageCount.toFixed(1)}\nBest Streak: ${stats.maxCount}`
                     });
                 }
             }
