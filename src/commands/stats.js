@@ -26,14 +26,21 @@ module.exports = {
                 .setFooter({ text: `Requested by ${interaction.user.username}` })
                 .setTimestamp();
 
+            let hasStats = false;
             for (const word of triggerWords) {
                 const stats = await streakManager.getStats(interaction.guildId, word);
-                if (stats) {
+                if (stats && stats.total > 0) {
+                    hasStats = true;
+                    const average = stats.average || 0;
                     embed.addFields({
                         name: `📝 ${word}`,
-                        value: `Total Streaks: ${stats.total}\nActive Users: ${stats.users}\nAverage Streak: ${stats.average.toFixed(1)}`
+                        value: `Total Streaks: ${stats.total}\nActive Users: ${stats.users}\nAverage Streak: ${average.toFixed(1)}`
                     });
                 }
+            }
+
+            if (!hasStats) {
+                embed.setDescription('No streak statistics available yet.');
             }
 
             await interaction.editReply({ embeds: [embed], ephemeral: false });
