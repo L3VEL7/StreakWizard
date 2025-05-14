@@ -227,7 +227,7 @@ async function getRemainingTime(guildId, userId, triggerWord) {
             }
         });
         
-        if (!streak || !streak.lastUpdated) {
+        if (!streak || !streak.updatedAt) {
             return null;
         }
         
@@ -241,7 +241,7 @@ async function getRemainingTime(guildId, userId, triggerWord) {
         
         // Calculate time passed since last update
         const now = new Date();
-        const lastUpdated = new Date(streak.lastUpdated);
+        const lastUpdated = new Date(streak.updatedAt);
         const diffMilliseconds = now - lastUpdated;
         const diffMinutes = Math.floor(diffMilliseconds / (1000 * 60));
         

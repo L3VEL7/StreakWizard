@@ -230,8 +230,8 @@ client.on('messageCreate', async message => {
             const result = await streakManager.incrementStreak(message.guildId, message.author.id, matchedWord);
             console.log(`[DEBUG] Increment result:`, JSON.stringify(result));
             
-            if (result === -1) {
-                console.log(`[DEBUG] Increment returned -1, checking remaining time`);
+            if (!result.incremented) {
+                console.log(`[DEBUG] Streak not incremented due to time limit, checking remaining time`);
                 const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, matchedWord);
                 console.log(`[DEBUG] Remaining time:`, JSON.stringify(remainingTime));
                 
