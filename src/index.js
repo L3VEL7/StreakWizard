@@ -214,37 +214,33 @@ client.on('messageCreate', async message => {
         const messageContent = message.content.toLowerCase();
         console.log(`[DEBUG] Lowercase message: "${messageContent}"`);
         
-        let foundMatch = false;
-        // Check each trigger word individually and log the result
-        for (const word of triggerWords) {
-            const matches = messageContent.includes(word);
-            console.log(`[DEBUG] Checking if message contains "${word}": ${matches}`);
-            if (matches) foundMatch = true;
-        }
+        // Find all matching trigger words in the message
+        const matchedWords = triggerWords.filter(word => messageContent.includes(word));
+        console.log(`[DEBUG] All matched words:`, JSON.stringify(matchedWords));
         
-        const matchedWord = triggerWords.find(word => messageContent.includes(word));
-        console.log(`[DEBUG] Matched word: ${matchedWord || 'None'}`);
-
-        if (matchedWord) {
-            console.log(`[DEBUG] Processing trigger word: ${matchedWord}`);
-            const result = await streakManager.incrementStreak(message.guildId, message.author.id, matchedWord);
-            console.log(`[DEBUG] Increment result:`, JSON.stringify(result));
-            
-            if (!result.incremented) {
-                console.log(`[DEBUG] Streak not incremented due to time limit, checking remaining time`);
-                const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, matchedWord);
-                console.log(`[DEBUG] Remaining time:`, JSON.stringify(remainingTime));
+        if (matchedWords.length > 0) {
+            // Process each matched word
+            for (const matchedWord of matchedWords) {
+                console.log(`[DEBUG] Processing trigger word: ${matchedWord}`);
+                const result = await streakManager.incrementStreak(message.guildId, message.author.id, matchedWord);
+                console.log(`[DEBUG] Increment result:`, JSON.stringify(result));
                 
-                if (remainingTime) {
-                    const timeMessage = remainingTime.hours > 0 
-                        ? `${remainingTime.hours}h ${remainingTime.minutes}m`
-                        : `${remainingTime.minutes}m`;
-                    await message.reply(`⏰ Please wait ${timeMessage} before using this trigger word again.`).catch(console.error);
+                if (!result.incremented) {
+                    console.log(`[DEBUG] Streak not incremented due to time limit, checking remaining time`);
+                    const remainingTime = await streakManager.getRemainingTime(message.guildId, message.author.id, matchedWord);
+                    console.log(`[DEBUG] Remaining time:`, JSON.stringify(remainingTime));
+                    
+                    if (remainingTime) {
+                        const timeMessage = remainingTime.hours > 0 
+                            ? `${remainingTime.hours}h ${remainingTime.minutes}m`
+                            : `${remainingTime.minutes}m`;
+                        await message.reply(`⏰ Please wait ${timeMessage} before using trigger word "${matchedWord}" again.`).catch(console.error);
+                    }
+                } else {
+                    // Only handle streak update if it was incremented
+                    await handleStreakUpdate(message, result, matchedWord);
                 }
-                return;
             }
-
-            await handleStreakUpdate(message, result, matchedWord);
         } else {
             console.log(`[DEBUG] No trigger words matched in this message`);
         }
