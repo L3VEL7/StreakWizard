@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const streakManager = require('../storage/streakManager');
+const { Streak } = require('../database/models');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -21,10 +22,14 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('trigger')
-                .setDescription('Reset all users\' streaks for a specific trigger word')
+                .setDescription('Delete all users\' streaks for a specific trigger word (complete reset)')
                 .addStringOption(option =>
                     option.setName('word')
                         .setDescription('The trigger word to reset')
+                        .setRequired(true))
+                .addBooleanOption(option =>
+                    option.setName('confirm')
+                        .setDescription('Confirm that you want to completely delete all streaks (not just reset them to 0)')
                         .setRequired(true))),
 
     async execute(interaction) {
@@ -40,6 +45,8 @@ module.exports = {
         try {
             const subcommand = interaction.options.getSubcommand();
             const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
+            
+            console.log(`/reset command used by ${interaction.user.tag} (${interaction.user.id}) with subcommand: ${subcommand}`);
 
             if (!triggerWords || triggerWords.length === 0) {
                 return await interaction.editReply({
@@ -92,6 +99,14 @@ module.exports = {
                     });
                 }
 
+                const confirm = interaction.options.getBoolean('confirm');
+                if (!confirm) {
+                    return await interaction.editReply({
+                        content: '❌ You must confirm the deletion by setting the confirm option to true.',
+                        ephemeral: true
+                    });
+                }
+
                 const lowercaseWord = word.toLowerCase();
                 if (!triggerWords.includes(lowercaseWord)) {
                     return await interaction.editReply({
@@ -100,29 +115,39 @@ module.exports = {
                     });
                 }
 
-                // Get all users with streaks for this word
-                const users = await streakManager.getUsersWithStreaks(interaction.guildId, lowercaseWord);
+                console.log(`/reset trigger: Deleting all streaks for word "${lowercaseWord}" in guild ${interaction.guildId}`);
                 
-                if (!users || users.length === 0) {
-                    return await interaction.editReply({
-                        content: `ℹ️ No users have streaks for "${word}".`,
+                // CHANGED: Instead of resetting streaks to 0, delete them completely from the database
+                try {
+                    // Delete all streak records for this trigger word
+                    const deletedCount = await Streak.destroy({
+                        where: {
+                            guildId: interaction.guildId,
+                            triggerWord: lowercaseWord
+                        }
+                    });
+                    
+                    console.log(`/reset trigger: Deleted ${deletedCount} streak records for word "${lowercaseWord}"`);
+                    
+                    if (deletedCount === 0) {
+                        return await interaction.editReply({
+                            content: `ℹ️ No users had streaks for "${word}" to delete.`,
+                            ephemeral: true
+                        });
+                    }
+
+                    await interaction.editReply({
+                        content: `✅ Successfully deleted all ${deletedCount} streak records for "${word}".\n` +
+                                 `Users can now start fresh with this trigger word.`,
+                        ephemeral: true
+                    });
+                } catch (error) {
+                    console.error('Error deleting streaks:', error);
+                    await interaction.editReply({
+                        content: `❌ An error occurred while deleting the streaks: ${error.message}`,
                         ephemeral: true
                     });
                 }
-
-                // Reset streaks for all users
-                let resetCount = 0;
-                for (const userId of users) {
-                    const result = await streakManager.resetStreak(interaction.guildId, userId, lowercaseWord);
-                    if (result.success) {
-                        resetCount++;
-                    }
-                }
-
-                await interaction.editReply({
-                    content: `✅ Reset "${word}" streaks for ${resetCount} users to 0.`,
-                    ephemeral: true
-                });
             }
         } catch (error) {
             console.error('Error resetting streaks:', error);
