@@ -1,12 +1,4 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-// Try to import sequelize, but don't fail if it doesn't exist
-let sequelize;
-try {
-    const models = require('../database/models');
-    sequelize = models.sequelize;
-} catch (error) {
-    console.warn('Could not import sequelize models:', error.message);
-}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,6 +7,7 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
     async execute(interaction) {
+        // Check permissions
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await interaction.reply({
                 content: '❌ You need administrator permissions to use this command.',
@@ -22,33 +15,42 @@ module.exports = {
             });
         }
 
-        await interaction.reply({
-            content: '🔄 Restarting bot...',
-            ephemeral: true
-        });
-
         try {
-            // Close database connection if available
-            if (sequelize) {
-                try {
-                    await sequelize.close();
-                    console.log('Database connection closed');
-                } catch (dbError) {
-                    console.error('Error closing database connection:', dbError);
-                }
-            }
-
-            // Make sure to wait a moment for the reply to be sent before exiting
-            setTimeout(() => {
-                console.log('Bot restart initiated by admin command');
-                process.exit(0); // This will trigger the PM2 restart
-            }, 1000);
-        } catch (error) {
-            console.error('Error during restart:', error);
-            await interaction.followUp({
-                content: '❌ An error occurred while restarting the bot.',
+            // Send confirmation message
+            await interaction.reply({
+                content: '🔄 Restarting bot...',
                 ephemeral: true
             });
+            
+            // Log the restart event
+            console.log(`Bot restart initiated by ${interaction.user.tag} (${interaction.user.id})`);
+            
+            // Simple delay to allow the message to be sent
+            setTimeout(() => {
+                console.log('Executing process.exit(0) for restart');
+                process.exit(0); // This will trigger the PM2/Railway restart
+            }, 1500);
+        } catch (error) {
+            // Handle any errors during the restart process
+            console.error('Error during restart process:', error);
+            
+            try {
+                // Try to notify the user about the error
+                if (interaction.replied) {
+                    await interaction.followUp({
+                        content: `❌ An error occurred during restart: ${error.message}`,
+                        ephemeral: true
+                    });
+                } else {
+                    await interaction.reply({
+                        content: `❌ An error occurred during restart: ${error.message}`,
+                        ephemeral: true
+                    });
+                }
+            } catch (followUpError) {
+                // If even the error notification fails, just log it
+                console.error('Could not send error message:', followUpError);
+            }
         }
     },
 }; 
