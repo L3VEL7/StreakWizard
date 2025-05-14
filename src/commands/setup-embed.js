@@ -352,7 +352,7 @@ module.exports = {
                         
                         // Get current limit in minutes
                         const currentLimit = await streakManager.getStreakLimit(interaction.guildId);
-                        const currentHours = currentLimit ? Math.floor(currentLimit / 60) : 0;
+                        const currentHours = currentLimit > 0 ? Math.floor(currentLimit / 60) : 0;
                         let newHours = currentHours;
                         
                         // Adjust the value based on which button was clicked
@@ -697,13 +697,18 @@ async function handleCoreConfig(interaction, originalInteraction) {
     const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
     const streakLimit = await streakManager.getStreakLimit(interaction.guildId);
     
+    // Format streak limit display
+    const streakLimitDisplay = streakLimit > 0 
+        ? `${Math.floor(streakLimit / 60)} hour${Math.floor(streakLimit / 60) !== 1 ? 's' : ''} (${streakLimit} minutes)`
+        : 'No limit (0)';
+    
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('🎯 Core Features Configuration')
         .setDescription('Select an option to configure:')
         .addFields(
             { name: 'Trigger Words', value: `Current: ${triggerWords.join(', ') || 'None'}` },
-            { name: 'Streak Limit', value: `Current: ${streakLimit || 'None'}` },
+            { name: 'Streak Limit', value: `Current: ${streakLimitDisplay}` },
             { name: 'Streak Streak', value: `Current: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` }
         );
 
@@ -1671,14 +1676,14 @@ async function handleTriggerWords(interaction, originalInteraction) {
 async function handleStreakLimit(interaction, originalInteraction) {
     // Get current streak limit
     const currentLimit = await streakManager.getStreakLimit(interaction.guildId);
-    const currentHours = currentLimit ? Math.floor(currentLimit / 60) : 0;
+    const currentHours = currentLimit > 0 ? Math.floor(currentLimit / 60) : 0;
     
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('⏰ Streak Update Interval')
         .setDescription('Set how frequently users can update their streaks.')
         .addFields(
-            { name: 'Current Setting', value: currentLimit ? `${currentHours} hour${currentHours !== 1 ? 's' : ''} (${currentLimit} minutes)` : 'No limit (0)' },
+            { name: 'Current Setting', value: currentLimit > 0 ? `${currentHours} hour${currentHours !== 1 ? 's' : ''} (${currentLimit} minutes)` : 'No limit (0)' },
             { name: 'Recommended', value: 'Between 1 and 12 hours' },
             { name: 'Instructions', value: 'Use the buttons below to adjust the value in hours (will be converted to minutes internally)' }
         );
@@ -1793,6 +1798,11 @@ async function showMainMenu(interaction, guildId) {
             maxGamblePercent: gamblingConfig.maxGamblePercent || 50,
             minStreaks: gamblingConfig.minStreaks || 10
         };
+        
+        // Format streak limit display
+        const streakLimitDisplay = streakLimit > 0 
+            ? `${Math.floor(streakLimit / 60)} hour${Math.floor(streakLimit / 60) !== 1 ? 's' : ''}`
+            : 'No limit';
 
         // Create the main embed with current configuration summary
         const embed = new EmbedBuilder()
@@ -1800,7 +1810,7 @@ async function showMainMenu(interaction, guildId) {
             .setTitle('⚙️ Server Configuration')
             .setDescription('Select a feature to configure from the dropdown menu below.')
             .addFields(
-                { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimit || 'None'}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
+                { name: '🎯 Core Features', value: `Trigger Words: ${triggerWords.join(', ') || 'None'}\nStreak Limit: ${streakLimitDisplay}\nStreak Streak: ${streakStreakEnabled ? '✅ Enabled' : '❌ Disabled'}` },
                 { name: '⚔️ Raid System', value: `Status: ${raidDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nMax Steal: ${raidDefaults.maxStealPercent}%\nRisk: ${raidDefaults.riskPercent}%\nSuccess Chance: ${raidDefaults.successChance}%\nCooldown: ${raidDefaults.cooldownEnabled === true ? '✅ Enabled' : '❌ Disabled'} ${raidDefaults.cooldownHours}h` },
                 { name: '🎲 Gambling System', value: `Status: ${gamblingDefaults.enabled ? '✅ Enabled' : '❌ Disabled'}\nSuccess Chance: ${gamblingDefaults.successChance}%\nMax Gamble: ${gamblingDefaults.maxGamblePercent}%\nMin Streaks: ${gamblingDefaults.minStreaks}` }
             );

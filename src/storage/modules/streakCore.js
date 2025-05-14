@@ -150,7 +150,7 @@ async function incrementStreak(guildId, userId, triggerWord) {
 async function getStreakLimit(guildId) {
     try {
         const config = await GuildConfig.findByPk(guildId);
-        return config ? (config.streakLimitMinutes || 0) : 0;
+        return config ? (config.streakLimit || 0) : 0;
     } catch (error) {
         console.error('Error getting streak limit:', error);
         return 0; // Default to no limit
@@ -164,7 +164,7 @@ async function setStreakLimit(guildId, minutes) {
     try {
         await GuildConfig.upsert({
             guildId,
-            streakLimitMinutes: minutes
+            streakLimit: minutes
         });
         return true;
     } catch (error) {
