@@ -19,43 +19,47 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
-
+        // Use reply instead of deferReply to avoid timing issues
         try {
-            const word = interaction.options.getString('word');
-            if (!word) {
-                return await interaction.editReply({
-                    content: '❌ Please provide a trigger word to remove.',
-                    ephemeral: true
-                });
-            }
-
+            // Get the word parameter directly - with required: true
+            const word = interaction.options.getString('word', true);
+            
+            // Log to help with debugging
+            console.log(`Removing trigger word: "${word}" in guild ${interaction.guildId}`);
+            
             const lowercaseWord = word.toLowerCase();
             const triggerWords = await streakManager.getTriggerWords(interaction.guildId);
+            
+            console.log(`Current trigger words: ${JSON.stringify(triggerWords)}`);
 
             if (!triggerWords || triggerWords.length === 0) {
-                return await interaction.editReply({
+                return await interaction.reply({
                     content: '❌ No trigger words are configured for this server.',
                     ephemeral: true
                 });
             }
 
             if (!triggerWords.includes(lowercaseWord)) {
-                return await interaction.editReply({
+                return await interaction.reply({
                     content: `❌ The word "${word}" is not a trigger word.`,
                     ephemeral: true
                 });
             }
 
             await streakManager.removeTriggerWord(interaction.guildId, lowercaseWord);
-            await interaction.editReply({
+            
+            // Get updated trigger words to confirm removal
+            const updatedTriggerWords = await streakManager.getTriggerWords(interaction.guildId);
+            console.log(`Updated trigger words: ${JSON.stringify(updatedTriggerWords)}`);
+            
+            await interaction.reply({
                 content: `✅ Successfully removed "${word}" as a trigger word.`,
                 ephemeral: true
             });
         } catch (error) {
             console.error('Error removing trigger word:', error);
-            await interaction.editReply({
-                content: '❌ An error occurred while removing the trigger word.',
+            return await interaction.reply({
+                content: `❌ An error occurred while removing the trigger word: ${error.message}`,
                 ephemeral: true
             });
         }
